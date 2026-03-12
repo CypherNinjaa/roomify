@@ -1,12 +1,22 @@
 import { useRef, useState, useCallback } from "react";
-import { Upload as UploadIcon, CheckCircle, Image } from "lucide-react";
+import {
+	Upload as UploadIcon,
+	CheckCircle,
+	Image,
+	AlertCircle,
+} from "lucide-react";
 import { PROGRESS_INCREMENT, PROGRESS_INTERVAL_MS } from "~/lib/constants";
+
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export default function Upload({ onComplete, className }: UploadProps) {
 	const [isDragging, setIsDragging] = useState(false);
 	const [file, setFile] = useState<File | null>(null);
 	const [progress, setProgress] = useState(0);
 	const [status, setStatus] = useState<"idle" | "uploading" | "done">("idle");
+	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -19,7 +29,20 @@ export default function Upload({ onComplete, className }: UploadProps) {
 
 	const handleFile = useCallback(
 		async (selected: File) => {
-			if (!selected.type.startsWith("image/")) return;
+			setError(null);
+
+			if (!ALLOWED_TYPES.includes(selected.type)) {
+				setError("Only JPG, PNG, and WebP images are supported.");
+				return;
+			}
+
+			if (selected.size > MAX_FILE_SIZE_BYTES) {
+				const sizeMB = (selected.size / (1024 * 1024)).toFixed(1);
+				setError(
+					`File is ${sizeMB} MB. Maximum allowed is ${MAX_FILE_SIZE_MB} MB.`,
+				);
+				return;
+			}
 
 			setFile(selected);
 			setStatus("uploading");
@@ -93,6 +116,12 @@ export default function Upload({ onComplete, className }: UploadProps) {
 
 	return (
 		<div className={`upload ${className ?? ""}`}>
+			{error && (
+				<div className="upload-error">
+					<AlertCircle size={16} />
+					<span>{error}</span>
+				</div>
+			)}
 			<div
 				className={`dropzone ${isDragging ? "is-dragging" : ""}`}
 				onDragOver={(e) => {

@@ -162,8 +162,8 @@ h6 {
 
 	&.btn--primary {
 		@apply bg-primary text-white border-2 border-black shadow-brutal-sm
-				hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]
-				active:translate-x-[3px] active:translate-y-[3px];
+				hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5
+				active:translate-x-0.75 active:translate-y-0.75;
 	}
 
 	&.btn--secondary {
@@ -285,6 +285,11 @@ h6 {
 		&:hover .drop-icon {
 			@apply border-primary/30 text-primary bg-primary-light shadow-brutal-sm;
 		}
+	}
+
+	.upload-error {
+		@apply flex items-center gap-2 px-4 py-3 mb-3 rounded-xl
+				bg-red-50 border-2 border-red-200 text-red-700 text-sm font-medium;
 	}
 
 	.upload-status {
@@ -730,7 +735,7 @@ h6 {
 				}
 
 				.zoom-level {
-					@apply text-xs font-mono text-muted min-w-[40px] text-center;
+					@apply text-xs font-mono text-muted min-w-10 text-center;
 				}
 			}
 
@@ -970,8 +975,8 @@ h6 {
 			@apply w-full justify-center;
 			&.primary {
 				@apply bg-primary text-white border-2 border-black shadow-brutal-sm
-						hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]
-						active:translate-x-[3px] active:translate-y-[3px];
+						hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5
+						active:translate-x-0.75 active:translate-y-0.75;
 			}
 		}
 	}
@@ -1000,7 +1005,7 @@ h6 {
 			hover:shadow-brutal-sm transition-all duration-200;
 
 	.profile-card-preview {
-		@apply block relative aspect-[4/3] overflow-hidden;
+		@apply block relative aspect-4/3 overflow-hidden;
 
 		img {
 			@apply w-full h-full object-cover transition-transform duration-300;
@@ -1129,7 +1134,7 @@ h6 {
 
 		.admin-tab {
 			@apply flex items-center gap-2 px-4 py-3 text-sm font-bold text-muted
-					border-b-3 border-transparent -mb-[2px] cursor-pointer
+					border-b-3 border-transparent -mb-0.5 cursor-pointer
 					transition-all duration-200;
 
 			&:hover {
@@ -1357,7 +1362,7 @@ h6 {
 				overflow-hidden hover:shadow-brutal-sm transition-all duration-200;
 
 		.project-thumb {
-			@apply relative aspect-[4/3] overflow-hidden;
+			@apply relative aspect-4/3 overflow-hidden;
 
 			img {
 				@apply w-full h-full object-cover;
