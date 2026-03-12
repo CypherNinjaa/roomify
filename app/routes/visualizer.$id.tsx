@@ -1,557 +1,590 @@
-import { useNavigate, useOutletContext, useParams } from "react-router";
-import { useEffect, useRef, useState, useCallback } from "react";
-import { generate3DView } from "../../lib/ai.action";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useLocation, useNavigate, Link } from "react-router";
 import {
-	Box,
-	Download,
-	RefreshCcw,
-	Share2,
-	X,
-	Paintbrush,
-	Images,
-	Check,
-	Trash2,
-	Pencil,
-	ZoomIn,
-	ZoomOut,
-	Maximize2,
-} from "lucide-react";
-import Button from "../../components/ui/Button";
-import { ROOM_STYLES } from "../../lib/constants";
-import {
-	createProject,
-	getProjectById,
-	deleteProject,
-} from "../../lib/puter.action";
+	useUser,
+	SignedIn,
+	SignedOut,
+	SignInButton,
+} from "@clerk/react-router";
 import {
 	ReactCompareSlider,
 	ReactCompareSliderImage,
 } from "react-compare-slider";
-import { VisualizerSkeleton } from "../../components/Skeleton";
+import {
+	Box,
+	ArrowLeft,
+	RefreshCw,
+	Download,
+	Share2,
+	Trash2,
+	Pencil,
+	Check,
+	Loader2,
+	ZoomIn,
+	ZoomOut,
+	Maximize2,
+	Image,
+	Paintbrush,
+	LogIn,
+} from "lucide-react";
+import { VisualizerSkeleton } from "~/components/Skeleton";
+import { ROOM_STYLES } from "~/lib/constants";
+import { extractBase64Data, extractMimeType } from "~/lib/utils";
 
-const VisualizerId = () => {
+interface LocationState {
+	sourceImage?: string;
+	projectName?: string;
+}
+
+export default function Visualizer() {
 	const { id } = useParams();
+	const location = useLocation();
 	const navigate = useNavigate();
-	const { userId } = useOutletContext<AuthContext>();
+	const { user, isSignedIn } = useUser();
 
-	const hasInitialGenerated = useRef(false);
+	const state = location.state as LocationState | null;
+	const sourceImage = state?.sourceImage ?? null;
 
-	const [project, setProject] = useState<DesignItem | null>(null);
-	const [isProjectLoading, setIsProjectLoading] = useState(true);
-
-	const [isProcessing, setIsProcessing] = useState(false);
-	const [currentImage, setCurrentImage] = useState<string | null>(null);
-	const [selectedStyle, setSelectedStyle] = useState<string>("modern");
-	const [styleCache, setStyleCache] = useState<Record<string, string>>({});
-	const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
+	const [projectName, setProjectName] = useState(
+		state?.projectName ?? "Untitled Project",
+	);
 	const [isRenaming, setIsRenaming] = useState(false);
-	const [renameValue, setRenameValue] = useState("");
-	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-	const [zoomLevel, setZoomLevel] = useState(1);
-	const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-	const [isPanning, setIsPanning] = useState(false);
-	const panStart = useRef({ x: 0, y: 0 });
+	const [renameValue, setRenameValue] = useState(projectName);
+	const [selectedStyle, setSelectedStyle] = useState("modern");
+	const [renderedImage, setRenderedImage] = useState<string | null>(null);
+	const [isProcessing, setIsProcessing] = useState(false);
+	const [styleCache, setStyleCache] = useState<Record<string, string>>({});
+	const [zoom, setZoom] = useState(100);
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [isPublishing, setIsPublishing] = useState(false);
+	const [publishStatus, setPublishStatus] = useState<
+		"idle" | "success" | "error"
+	>("idle");
 	const renderAreaRef = useRef<HTMLDivElement>(null);
 
-	const handleBack = () => navigate("/");
-	const handleExport = () => {
-		if (!currentImage) return;
-
-		const link = document.createElement("a");
-		link.href = currentImage;
-		link.download = `roomify-${id || "design"}.png`;
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-	};
-
-	const handleShare = async () => {
-		const shareUrl = window.location.href;
-		try {
-			await navigator.clipboard.writeText(shareUrl);
-			setShareStatus("copied");
-			setTimeout(() => setShareStatus("idle"), 1500);
-		} catch {
-			console.error("Failed to copy link");
-		}
-	};
-
-	const handleStyleSelect = (styleId: string) => {
-		setSelectedStyle(styleId);
-		if (styleCache[styleId]) {
-			setCurrentImage(styleCache[styleId]);
-		}
-	};
-
-	const handleStartRename = () => {
-		setRenameValue(project?.name || `Residence ${id}`);
-		setIsRenaming(true);
-	};
-
-	const handleSaveRename = async () => {
-		if (!project || !renameValue.trim()) return;
-		const updated = { ...project, name: renameValue.trim() };
-		setProject(updated);
-		setIsRenaming(false);
-		await createProject({ item: updated, visibility: "private" });
-	};
-
-	const handleDelete = async () => {
-		if (!id) return;
-		const success = await deleteProject({ id });
-		if (success) navigate("/");
-	};
-
-	const handleZoomIn = () => setZoomLevel((z) => Math.min(z + 0.25, 3));
-	const handleZoomOut = () => {
-		setZoomLevel((z) => {
-			const next = Math.max(z - 0.25, 1);
-			if (next === 1) setPanOffset({ x: 0, y: 0 });
-			return next;
-		});
-	};
-	const handleZoomReset = () => {
-		setZoomLevel(1);
-		setPanOffset({ x: 0, y: 0 });
-	};
-
-	const handlePointerDown = useCallback(
-		(e: React.PointerEvent) => {
-			if (zoomLevel <= 1) return;
-			setIsPanning(true);
-			panStart.current = {
-				x: e.clientX - panOffset.x,
-				y: e.clientY - panOffset.y,
-			};
-			(e.target as HTMLElement).setPointerCapture(e.pointerId);
-		},
-		[zoomLevel, panOffset],
-	);
-
-	const handlePointerMove = useCallback(
-		(e: React.PointerEvent) => {
-			if (!isPanning) return;
-			setPanOffset({
-				x: e.clientX - panStart.current.x,
-				y: e.clientY - panStart.current.y,
-			});
-		},
-		[isPanning],
-	);
-
-	const handlePointerUp = useCallback(() => setIsPanning(false), []);
-
-	const handleWheel = useCallback(
-		(e: React.WheelEvent) => {
-			if (!currentImage) return;
-			e.preventDefault();
-			const delta = e.deltaY < 0 ? 0.15 : -0.15;
-			setZoomLevel((z) => {
-				const next = Math.min(Math.max(z + delta, 1), 3);
-				if (next === 1) setPanOffset({ x: 0, y: 0 });
-				return next;
-			});
-		},
-		[currentImage],
-	);
-
-	const runGeneration = async (item: DesignItem, style?: string) => {
-		const activeStyle = style || selectedStyle;
-		if (!id || !item.sourceImage) return;
-
-		if (styleCache[activeStyle]) {
-			setCurrentImage(styleCache[activeStyle]);
-			return;
-		}
-
-		try {
-			setIsProcessing(true);
-			const result = await generate3DView({
-				sourceImage: item.sourceImage,
-				style: activeStyle,
-			});
-
-			if (result.renderedImage) {
-				setCurrentImage(result.renderedImage);
-				setStyleCache((prev) => ({
-					...prev,
-					[activeStyle]: result.renderedImage!,
-				}));
-
-				const updatedItem = {
-					...item,
-					renderedImage: result.renderedImage,
-					renderedPath: result.renderedPath,
-					timestamp: Date.now(),
-					ownerId: item.ownerId ?? userId ?? null,
-					isPublic: item.isPublic ?? false,
-				};
-
-				const saved = await createProject({
-					item: updatedItem,
-					visibility: "private",
-				});
-
-				if (saved) {
-					setProject(saved);
-					setCurrentImage(saved.renderedImage || result.renderedImage);
-				}
-			}
-		} catch (error) {
-			console.error("Generation failed: ", error);
-		} finally {
-			setIsProcessing(false);
-		}
-	};
-
+	// Auto-generate on first load
 	useEffect(() => {
-		let isMounted = true;
+		if (sourceImage && !renderedImage && !isProcessing) {
+			generateRender(selectedStyle);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [sourceImage]);
 
-		const loadProject = async () => {
-			if (!id) {
-				setIsProjectLoading(false);
+	const generateRender = useCallback(
+		async (style: string) => {
+			if (!sourceImage) return;
+
+			// Check cache first
+			if (styleCache[style]) {
+				setRenderedImage(styleCache[style]);
+				setSelectedStyle(style);
 				return;
 			}
 
-			setIsProjectLoading(true);
+			setIsProcessing(true);
+			setSelectedStyle(style);
 
-			const fetchedProject = await getProjectById({ id });
+			try {
+				let base64Data: string;
+				let mimeType: string;
 
-			if (!isMounted) return;
+				if (sourceImage.startsWith("data:")) {
+					// Local base64 data URL
+					base64Data = extractBase64Data(sourceImage);
+					mimeType = extractMimeType(sourceImage);
+				} else {
+					// Cloudinary URL — fetch and convert to base64
+					const imgResponse = await fetch(sourceImage);
+					const blob = await imgResponse.blob();
+					mimeType = blob.type || "image/png";
+					const arrayBuffer = await blob.arrayBuffer();
+					base64Data = btoa(
+						String.fromCharCode(...new Uint8Array(arrayBuffer)),
+					);
+				}
 
-			setProject(fetchedProject);
-			setCurrentImage(fetchedProject?.renderedImage || null);
-			setIsProjectLoading(false);
-			hasInitialGenerated.current = false;
-		};
+				const response = await fetch("/api/generate", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						sourceImageBase64: base64Data,
+						mimeType,
+						style,
+					}),
+				});
 
-		loadProject();
+				if (!response.ok) throw new Error("Generation failed");
 
-		return () => {
-			isMounted = false;
-		};
-	}, [id]);
+				const data = await response.json();
 
-	useEffect(() => {
-		if (
-			isProjectLoading ||
-			hasInitialGenerated.current ||
-			!project?.sourceImage
-		)
-			return;
+				if (data.renderedImage) {
+					setRenderedImage(data.renderedImage);
+					setStyleCache((prev) => ({ ...prev, [style]: data.renderedImage }));
 
-		if (project.renderedImage) {
-			setCurrentImage(project.renderedImage);
-			hasInitialGenerated.current = true;
+					// Save rendered image to Cloudinary in background
+					try {
+						await fetch("/api/projects", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								action: "save-render",
+								projectId: id,
+								data: {
+									renderedImage: data.renderedImage,
+									style,
+									name: projectName,
+								},
+							}),
+						});
+					} catch {
+						/* non-critical: render is still cached locally */
+					}
+				}
+			} catch (error) {
+				console.error("Render generation failed:", error);
+			} finally {
+				setIsProcessing(false);
+			}
+		},
+		[sourceImage, styleCache],
+	);
+
+	const handleExport = () => {
+		const image = renderedImage ?? sourceImage;
+		if (!image) return;
+
+		const link = document.createElement("a");
+		link.href = image;
+		link.download = `${projectName}-${selectedStyle}.png`;
+		link.click();
+	};
+
+	const handleShare = async () => {
+		if (!renderedImage || !user) {
+			// Just copy URL if no render yet
+			try {
+				await navigator.clipboard.writeText(window.location.href);
+			} catch {
+				/* clipboard may not be available */
+			}
 			return;
 		}
 
-		hasInitialGenerated.current = true;
-		void runGeneration(project);
-	}, [project, isProjectLoading]);
+		setIsPublishing(true);
+		setPublishStatus("idle");
+		try {
+			const res = await fetch("/api/community", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					renderedImage,
+					projectName,
+					ownerName: user.fullName ?? user.username ?? "User",
+					style: selectedStyle,
+					sourceImage,
+				}),
+			});
+
+			if (res.ok) {
+				setPublishStatus("success");
+				setTimeout(() => setPublishStatus("idle"), 3000);
+			} else {
+				setPublishStatus("error");
+				setTimeout(() => setPublishStatus("idle"), 3000);
+			}
+		} catch {
+			setPublishStatus("error");
+			setTimeout(() => setPublishStatus("idle"), 3000);
+		} finally {
+			setIsPublishing(false);
+		}
+	};
+
+	const handleRename = async () => {
+		const newName = renameValue.trim();
+		if (newName) {
+			setProjectName(newName);
+			// Persist rename to Cloudinary
+			try {
+				await fetch("/api/projects", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						action: "rename",
+						projectId: id,
+						data: { name: newName },
+					}),
+				});
+			} catch {
+				/* non-critical */
+			}
+		}
+		setIsRenaming(false);
+	};
+
+	const handleDelete = async () => {
+		if (!user || !id) return;
+		try {
+			await fetch("/api/projects", {
+				method: "DELETE",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ projectId: id }),
+			});
+		} catch {
+			/* ignore */
+		}
+		navigate("/");
+	};
+
+	// Auth gate
+	if (!isSignedIn) {
+		return (
+			<div className="page">
+				<div className="auth-gate">
+					<div className="auth-icon">
+						<LogIn size={28} className="text-primary" />
+					</div>
+					<h2>Sign In Required</h2>
+					<p>Sign in to access the visualizer and your projects.</p>
+					<SignInButton mode="modal">
+						<button className="btn btn--primary btn--md" type="button">
+							Sign In
+						</button>
+					</SignInButton>
+				</div>
+			</div>
+		);
+	}
+
+	if (!sourceImage) {
+		return (
+			<div className="visualizer">
+				<div className="topbar">
+					<Link to="/" className="brand">
+						<Box className="logo" />
+						<span className="name">Roomify</span>
+					</Link>
+				</div>
+				<div className="content">
+					<div className="panel">
+						<div className="panel-header">
+							<div className="panel-meta">
+								<h2>Project Not Found</h2>
+								<p>Navigate back to upload a floor plan.</p>
+							</div>
+						</div>
+						<div className="render-area">
+							<div className="render-placeholder">
+								<div className="text-center text-stone-400">
+									<Image size={48} className="mx-auto mb-3 opacity-50" />
+									<p className="text-sm font-medium">No floor plan loaded</p>
+									<Link
+										to="/"
+										className="text-primary text-sm mt-2 inline-block hover:underline"
+									>
+										Go back & upload
+									</Link>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="visualizer">
-			<nav className="topbar">
-				<div className="brand">
+			{/* Top Bar */}
+			<div className="topbar">
+				<Link to="/" className="brand">
 					<Box className="logo" />
-
 					<span className="name">Roomify</span>
-				</div>
-				<Button variant="ghost" size="sm" onClick={handleBack} className="exit">
-					<X className="icon" /> Exit Editor
-				</Button>
-			</nav>
+				</Link>
+				<button
+					type="button"
+					className="exit btn btn--ghost btn--sm"
+					onClick={() => navigate("/")}
+				>
+					<ArrowLeft size={16} />
+					<span className="hidden sm:inline">Back</span>
+				</button>
+			</div>
 
-			<section className="content">
-				{isProjectLoading ?
-					<div className="panel">
-						<VisualizerSkeleton />
-					</div>
-				:	<div className="panel">
-						<div className="panel-header">
-							<div className="panel-meta">
-								<p>Project</p>
-								{isRenaming ?
-									<div className="rename-row">
-										<input
-											type="text"
-											value={renameValue}
-											onChange={(e) => setRenameValue(e.target.value)}
-											onKeyDown={(e) => e.key === "Enter" && handleSaveRename()}
-											className="rename-input"
-											autoFocus
-										/>
-										<Button
-											size="sm"
-											onClick={handleSaveRename}
-											className="rename-save"
-										>
-											<Check className="w-3 h-3" />
-										</Button>
-										<Button
-											size="sm"
-											variant="ghost"
-											onClick={() => setIsRenaming(false)}
-										>
-											<X className="w-3 h-3" />
-										</Button>
-									</div>
-								:	<div className="name-row">
-										<h2>{project?.name || `Residence ${id}`}</h2>
-										<button
-											className="icon-btn"
-											onClick={handleStartRename}
-											title="Rename"
-										>
-											<Pencil className="w-3.5 h-3.5" />
-										</button>
-										<button
-											className="icon-btn danger"
-											onClick={() => setShowDeleteConfirm(true)}
-											title="Delete"
-										>
-											<Trash2 className="w-3.5 h-3.5" />
-										</button>
-									</div>
-								}
-								<p className="note">Created by You</p>
-							</div>
-
-							<div className="panel-actions">
-								<Button
-									size="sm"
-									onClick={() =>
-										project && runGeneration(project, selectedStyle)
-									}
-									className="regenerate"
-									disabled={isProcessing || !project?.sourceImage}
-								>
-									<RefreshCcw className="w-4 h-4 mr-2" />
-									{styleCache[selectedStyle] ? "View Cached" : "Generate"}
-								</Button>
-								<Button
-									size="sm"
-									onClick={handleExport}
-									className="export"
-									disabled={!currentImage}
-								>
-									<Download className="w-4 h-4 mr-2" /> Export
-								</Button>
-								<Button size="sm" onClick={handleShare} className="share">
-									{shareStatus === "copied" ?
-										<>
-											<Check className="w-4 h-4 mr-2" /> Copied!
-										</>
-									:	<>
-											<Share2 className="w-4 h-4 mr-2" /> Share
-										</>
-									}
-								</Button>
-							</div>
+			<div className="content">
+				{/* Main Render Panel */}
+				<div className="panel">
+					<div className="panel-header">
+						<div className="panel-meta">
+							<p>Project</p>
+							{isRenaming ?
+								<div className="rename-row">
+									<input
+										className="rename-input"
+										value={renameValue}
+										onChange={(e) => setRenameValue(e.target.value)}
+										onKeyDown={(e) => e.key === "Enter" && handleRename()}
+										autoFocus
+									/>
+									<button
+										type="button"
+										className="rename-save btn btn--primary btn--sm"
+										onClick={handleRename}
+									>
+										<Check size={14} />
+									</button>
+								</div>
+							:	<div className="name-row">
+									<h2>{projectName}</h2>
+									<button
+										type="button"
+										className="icon-btn"
+										onClick={() => {
+											setRenameValue(projectName);
+											setIsRenaming(true);
+										}}
+										title="Rename"
+									>
+										<Pencil size={12} />
+									</button>
+									<button
+										type="button"
+										className="icon-btn danger"
+										onClick={() => setShowDeleteModal(true)}
+										title="Delete"
+									>
+										<Trash2 size={12} />
+									</button>
+								</div>
+							}
 						</div>
 
-						<div className="style-selector">
-							<div className="style-selector-header">
-								<Paintbrush className="w-4 h-4" />
-								<span>Room Style</span>
-							</div>
-							<div className="style-options">
-								{ROOM_STYLES.map((style) => (
+						<div className="panel-actions">
+							<button
+								type="button"
+								className="regenerate btn btn--sm"
+								onClick={() => generateRender(selectedStyle)}
+								disabled={isProcessing}
+							>
+								<RefreshCw
+									size={14}
+									className={isProcessing ? "animate-spin" : ""}
+								/>
+								<span className="hidden sm:inline ml-1">Regenerate</span>
+							</button>
+							<button
+								type="button"
+								className="export btn btn--sm"
+								onClick={handleExport}
+								disabled={!renderedImage && !sourceImage}
+							>
+								<Download size={14} />
+								<span className="hidden sm:inline ml-1">Export</span>
+							</button>
+							<button
+								type="button"
+								className="share btn btn--sm"
+								onClick={handleShare}
+								disabled={isPublishing}
+								title={renderedImage ? "Publish to Community" : "Copy link"}
+							>
+								{isPublishing ?
+									<Loader2 size={14} className="animate-spin" />
+								:	<Share2 size={14} />}
+								<span className="hidden sm:inline ml-1">
+									{publishStatus === "success" ?
+										"Published!"
+									: publishStatus === "error" ?
+										"Failed"
+									: renderedImage ?
+										"Publish"
+									:	"Share"}
+								</span>
+							</button>
+						</div>
+					</div>
+
+					{/* Style Selector */}
+					<div className="style-selector">
+						<div className="style-selector-header">
+							<Paintbrush size={14} />
+							<span>Design Style</span>
+						</div>
+						<div className="style-options">
+							{ROOM_STYLES.map((style) => {
+								const isCached = !!styleCache[style.id];
+								const isActive = selectedStyle === style.id;
+								return (
 									<button
+										type="button"
 										key={style.id}
-										className={`style-option ${selectedStyle === style.id ? "active" : ""} ${styleCache[style.id] ? "cached" : ""}`}
-										onClick={() => handleStyleSelect(style.id)}
+										className={`style-option ${isActive ? "active" : ""} ${isCached ? "cached" : ""}`}
+										onClick={() => generateRender(style.id)}
 										disabled={isProcessing}
 									>
 										<span className="style-label">
 											{style.label}
-											{styleCache[style.id] && (
+											{isCached && !isActive && (
 												<span className="cached-badge">✓</span>
 											)}
 										</span>
 										<span className="style-desc">{style.description}</span>
 									</button>
-								))}
-							</div>
+								);
+							})}
 						</div>
+					</div>
 
-						<div
-							className={`render-area ${isProcessing ? "is-processing" : ""}`}
-							ref={renderAreaRef}
-							onPointerDown={handlePointerDown}
-							onPointerMove={handlePointerMove}
-							onPointerUp={handlePointerUp}
-							onWheel={handleWheel}
-							style={{
-								cursor:
-									zoomLevel > 1 ?
-										isPanning ? "grabbing"
-										:	"grab"
-									:	"default",
-							}}
-						>
-							{currentImage ?
-								<img
-									src={currentImage}
-									alt="AI Render"
-									className="render-img"
-									draggable={false}
-									style={{
-										transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
-										transformOrigin: "center center",
-									}}
-								/>
-							:	<div className="render-placeholder">
-									{project?.sourceImage && (
-										<img
-											src={project?.sourceImage}
-											alt="Original"
-											className="render-fallback"
-										/>
-									)}
-								</div>
-							}
-
-							{currentImage && (
-								<div className="zoom-controls">
-									<button
-										onClick={handleZoomIn}
-										title="Zoom in"
-										disabled={zoomLevel >= 3}
-									>
-										<ZoomIn className="w-4 h-4" />
-									</button>
-									<span className="zoom-level">
-										{Math.round(zoomLevel * 100)}%
+					{/* Render Area */}
+					<div
+						className={`render-area ${isProcessing ? "is-processing" : ""}`}
+						ref={renderAreaRef}
+					>
+						{isProcessing && (
+							<div className="render-overlay">
+								<div className="rendering-card">
+									<Loader2 className="spinner" />
+									<span className="title">Generating 3D Render</span>
+									<span className="subtitle">
+										Applying {selectedStyle} style...
 									</span>
-									<button
-										onClick={handleZoomOut}
-										title="Zoom out"
-										disabled={zoomLevel <= 1}
-									>
-										<ZoomOut className="w-4 h-4" />
-									</button>
-									<button onClick={handleZoomReset} title="Reset zoom">
-										<Maximize2 className="w-4 h-4" />
-									</button>
 								</div>
-							)}
+							</div>
+						)}
 
-							{isProcessing && (
-								<div className="render-overlay">
-									<div className="rendering-card">
-										<RefreshCcw className="spinner" />
-										<span className="title">Rendering...</span>
-										<span className="subtitle">
-											Generating your 3D visualization
-										</span>
-									</div>
-								</div>
-							)}
+						{renderedImage ?
+							<img
+								className="render-img"
+								src={renderedImage}
+								alt="3D Render"
+								style={{ transform: `scale(${zoom / 100})` }}
+								draggable={false}
+							/>
+						: sourceImage ?
+							<img
+								className="render-img"
+								src={sourceImage}
+								alt="Source floor plan"
+								style={{ transform: `scale(${zoom / 100})` }}
+								draggable={false}
+							/>
+						:	<div className="render-placeholder">
+								<VisualizerSkeleton />
+							</div>
+						}
+
+						{/* Zoom Controls */}
+						<div className="zoom-controls">
+							<button
+								type="button"
+								onClick={() => setZoom((z) => Math.max(25, z - 25))}
+								disabled={zoom <= 25}
+							>
+								<ZoomOut size={14} />
+							</button>
+							<span className="zoom-level">{zoom}%</span>
+							<button
+								type="button"
+								onClick={() => setZoom((z) => Math.min(300, z + 25))}
+								disabled={zoom >= 300}
+							>
+								<ZoomIn size={14} />
+							</button>
+							<button type="button" onClick={() => setZoom(100)}>
+								<Maximize2 size={14} />
+							</button>
 						</div>
 					</div>
-				}
+				</div>
 
-				<div className="panel compare">
-					<div className="panel-header">
-						<div className="panel-meta">
-							<p>Comparison</p>
-							<h3>Before and After</h3>
+				{/* Before/After Comparison */}
+				{renderedImage && sourceImage && (
+					<div className="panel compare">
+						<div className="panel-header">
+							<div className="panel-meta">
+								<h3>Before & After</h3>
+							</div>
+							<span className="hint">← Drag to compare →</span>
 						</div>
-						<div className="hint">Drag to compare</div>
-					</div>
-
-					<div className="compare-stage">
-						{project?.sourceImage && currentImage ?
+						<div className="compare-stage">
 							<ReactCompareSlider
-								key={currentImage}
-								defaultValue={50}
-								style={{ width: "100%", height: "auto" }}
 								itemOne={
 									<ReactCompareSliderImage
-										src={project?.sourceImage}
-										alt="before"
-										className="compare-img"
+										src={sourceImage}
+										alt="Original Floor Plan"
 									/>
 								}
 								itemTwo={
 									<ReactCompareSliderImage
-										src={currentImage || project?.renderedImage || ""}
-										alt="after"
-										className="compare-img"
+										src={renderedImage}
+										alt="3D Render"
 									/>
 								}
+								style={{ height: "400px" }}
 							/>
-						:	<div className="compare-fallback">
-								{project?.sourceImage && (
-									<img
-										src={project.sourceImage}
-										alt="Before"
-										className="compare-img"
-									/>
-								)}
-							</div>
-						}
+						</div>
 					</div>
-				</div>
+				)}
 
-				{Object.keys(styleCache).length > 0 && (
+				{/* Style Gallery */}
+				{Object.keys(styleCache).length > 1 && (
 					<div className="panel style-gallery">
 						<div className="panel-header">
 							<div className="panel-meta">
-								<p>Gallery</p>
-								<h3>Generated Styles ({Object.keys(styleCache).length}/5)</h3>
+								<h3>Style Gallery</h3>
 							</div>
-							<div className="hint">
-								<Images className="w-4 h-4" /> Click to view
-							</div>
+							<span className="hint">
+								{Object.keys(styleCache).length} styles generated
+							</span>
 						</div>
 						<div className="gallery-grid">
-							{ROOM_STYLES.filter((s) => styleCache[s.id]).map((style) => (
+							{Object.entries(styleCache).map(([style, image]) => (
 								<button
-									key={style.id}
-									className={`gallery-item ${selectedStyle === style.id ? "active" : ""}`}
-									onClick={() => handleStyleSelect(style.id)}
+									key={style}
+									type="button"
+									className={`gallery-item ${selectedStyle === style ? "active" : ""}`}
+									onClick={() => {
+										setSelectedStyle(style);
+										setRenderedImage(image);
+									}}
 								>
-									<img src={styleCache[style.id]} alt={style.label} />
-									<span className="gallery-label">{style.label}</span>
+									<img src={image} alt={`${style} render`} />
+									<span className="gallery-label">{style}</span>
 								</button>
 							))}
 						</div>
 					</div>
 				)}
-			</section>
+			</div>
 
-			{showDeleteConfirm && (
-				<div
-					className="delete-modal-overlay"
-					onClick={() => setShowDeleteConfirm(false)}
-				>
-					<div className="delete-modal" onClick={(e) => e.stopPropagation()}>
-						<Trash2 className="w-8 h-8 text-red-500 mb-3" />
-						<h3>Delete Project</h3>
-						<p>Are you sure? This action cannot be undone.</p>
+			{/* Delete Confirmation Modal */}
+			{showDeleteModal && (
+				<div className="delete-modal-overlay">
+					<div className="delete-modal">
+						<h3>Delete Project?</h3>
+						<p>
+							This will permanently delete &quot;{projectName}&quot; and all its
+							renders.
+						</p>
 						<div className="delete-modal-actions">
-							<Button
-								size="sm"
-								onClick={handleDelete}
-								className="delete-confirm"
-							>
-								Delete
-							</Button>
-							<Button
-								size="sm"
-								variant="ghost"
-								onClick={() => setShowDeleteConfirm(false)}
+							<button
+								type="button"
+								className="btn btn--secondary btn--sm"
+								onClick={() => setShowDeleteModal(false)}
 							>
 								Cancel
-							</Button>
+							</button>
+							<button
+								type="button"
+								className="delete-confirm btn btn--sm"
+								onClick={handleDelete}
+							>
+								Delete
+							</button>
 						</div>
 					</div>
 				</div>
 			)}
 		</div>
 	);
-};
-export default VisualizerId;
+}

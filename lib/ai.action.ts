@@ -1,62 +1,61 @@
-import puter from "@heyputer/puter.js";
-import {
-	ROOMIFY_RENDER_PROMPT,
-	STYLE_PROMPTS,
-	type RoomStyleId,
-} from "./constants";
+import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
+import { ROOMIFY_RENDER_PROMPT, STYLE_PROMPTS } from "./constants";
 
-export const fetchAsDataUrl = async (url: string): Promise<string> => {
-	const response = await fetch(url);
+const genAI = new GoogleGenAI({ apiKey: process.env.geminiapi ?? "" });
 
-	if (!response.ok) {
-		throw new Error(`Failed to fetch image: ${response.statusText}`);
+export async function generate3DView({
+	sourceImageBase64,
+	mimeType,
+	style = "modern",
+}: {
+	sourceImageBase64: string;
+	mimeType: string;
+	style?: string;
+}): Promise<{ renderedImage: string } | null> {
+	try {
+		const styleOverride = STYLE_PROMPTS[style] ?? STYLE_PROMPTS["modern"] ?? "";
+		const prompt = ROOMIFY_RENDER_PROMPT.replace(
+			"{STYLE_OVERRIDE}",
+			styleOverride,
+		);
+
+		const config: GenerateContentConfig = {
+			responseModalities: ["image", "text"] as unknown as string[],
+		};
+
+		const response = await genAI.models.generateContent({
+			model: "gemini-2.5-flash-image",
+			contents: [
+				{
+					role: "user",
+					parts: [
+						{
+							inlineData: {
+								mimeType,
+								data: sourceImageBase64,
+							},
+						},
+						{ text: prompt },
+					],
+				},
+			],
+			config,
+		});
+
+		const parts = response.candidates?.[0]?.content?.parts;
+		if (!parts) return null;
+
+		for (const part of parts) {
+			if (part.inlineData) {
+				const outMime = part.inlineData.mimeType ?? "image/png";
+				const renderedImage = `data:${outMime};base64,${part.inlineData.data}`;
+				return { renderedImage };
+			}
+		}
+
+		return null;
+	} catch (error) {
+		console.error("AI generation failed:", error);
+		return null;
 	}
-
-	const blob = await response.blob();
-
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onloadend = () => resolve(reader.result as string);
-		reader.onerror = reject;
-		reader.readAsDataURL(blob);
-	});
-};
-
-export const generate3DView = async ({
-	sourceImage,
-	style,
-}: Generate3DViewParams) => {
-	const dataUrl =
-		sourceImage.startsWith("data:") ? sourceImage : (
-			await fetchAsDataUrl(sourceImage)
-		);
-
-	const base64Data = dataUrl.split(",")[1];
-	const mimeType = dataUrl.split(";")[0].split(":")[1];
-
-	if (!mimeType || !base64Data) throw new Error("Invalid source image payload");
-
-	const styleKey = style as RoomStyleId | undefined;
-	const stylePrompt =
-		styleKey && STYLE_PROMPTS[styleKey] ? `\n\n${STYLE_PROMPTS[styleKey]}` : "";
-	const finalPrompt = ROOMIFY_RENDER_PROMPT + stylePrompt;
-
-	const response = await puter.ai.txt2img(finalPrompt, {
-		provider: "gemini",
-		model: "gemini-2.5-flash-image-preview",
-		input_image: base64Data,
-		input_image_mime_type: mimeType,
-		ratio: { w: 1024, h: 1024 },
-	});
-
-	const rawImageUrl = (response as HTMLImageElement).src ?? null;
-
-	if (!rawImageUrl) return { renderedImage: null, renderedPath: undefined };
-
-	const renderedImage =
-		rawImageUrl.startsWith("data:") ? rawImageUrl : (
-			await fetchAsDataUrl(rawImageUrl)
-		);
-
-	return { renderedImage, renderedPath: undefined };
-};
+}

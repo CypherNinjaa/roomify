@@ -1,131 +1,124 @@
-import { Box, User, Menu, X } from "lucide-react";
-import Button from "./ui/Button";
-import { Link, useOutletContext } from "react-router";
 import { useState } from "react";
+import { Link } from "react-router";
+import {
+	SignInButton,
+	SignedIn,
+	SignedOut,
+	UserButton,
+	useUser,
+} from "@clerk/react-router";
+import { Menu, X, Box } from "lucide-react";
 
-const Navbar = () => {
-	const { isSignedIn, userName, signIn, signOut } =
-		useOutletContext<AuthContext>();
+const NAV_LINKS = [
+	{ to: "/product", label: "Product" },
+	{ to: "/pricing", label: "Pricing" },
+	{ to: "/community", label: "Community" },
+	{ to: "/enterprise", label: "Enterprise" },
+];
+
+export default function Navbar() {
 	const [mobileOpen, setMobileOpen] = useState(false);
-
-	const handleAuthClick = async () => {
-		setMobileOpen(false);
-		if (isSignedIn) {
-			try {
-				await signOut();
-			} catch (e) {
-				console.error(`Puter sign out failed: ${e}`);
-			}
-
-			return;
-		}
-
-		try {
-			await signIn();
-		} catch (e) {
-			console.error(`Puter sign in failed: ${e}`);
-		}
-	};
+	const { user } = useUser();
+	const isAdmin = user?.publicMetadata?.role === "admin";
 
 	return (
-		<header className="navbar">
-			<nav className="inner">
+		<nav className="navbar">
+			<div className="inner">
 				<div className="left">
-					<div className="brand">
+					<Link to="/" className="brand">
 						<Box className="logo" />
-
 						<span className="name">Roomify</span>
-					</div>
+					</Link>
 
-					<ul className="links">
-						<Link to="/product">Product</Link>
-						<Link to="/pricing">Pricing</Link>
-						<Link to="/community">Community</Link>
-						<Link to="/enterprise">Enterprise</Link>
-					</ul>
+					<div className="links">
+						{NAV_LINKS.map((link) => (
+							<Link key={link.to} to={link.to}>
+								{link.label}
+							</Link>
+						))}
+						{isAdmin && <Link to="/admin">Admin</Link>}
+					</div>
 				</div>
 
 				<div className="actions">
-					{isSignedIn ?
-						<>
-							<Link to="/profile" className="greeting">
-								{userName ? `Hi, ${userName}` : "Signed in"}
-							</Link>
-
-							<Button size="sm" onClick={handleAuthClick} className="btn">
-								Log Out
-							</Button>
-						</>
-					:	<>
-							<Button onClick={handleAuthClick} size="sm" variant="ghost">
-								Log In
-							</Button>
-
-							<a href="#upload" className="cta">
+					<SignedOut>
+						<SignInButton mode="modal">
+							<button className="btn btn--ghost btn--sm" type="button">
+								Sign In
+							</button>
+						</SignInButton>
+						<SignInButton mode="modal">
+							<button className="btn btn--primary btn--sm" type="button">
 								Get Started
-							</a>
-						</>
-					}
+							</button>
+						</SignInButton>
+					</SignedOut>
+
+					<SignedIn>
+						<Link to="/profile" className="btn btn--ghost btn--sm">
+							Profile
+						</Link>
+						<UserButton
+							appearance={{
+								elements: { avatarBox: "w-8 h-8" },
+							}}
+						/>
+					</SignedIn>
 				</div>
 
 				<button
+					type="button"
 					className="mobile-toggle"
 					onClick={() => setMobileOpen(!mobileOpen)}
 					aria-label="Toggle menu"
 				>
 					{mobileOpen ?
-						<X className="w-5 h-5" />
-					:	<Menu className="w-5 h-5" />}
+						<X size={20} />
+					:	<Menu size={20} />}
 				</button>
-			</nav>
+			</div>
 
 			{mobileOpen && (
 				<div className="mobile-menu">
-					<Link to="/product" onClick={() => setMobileOpen(false)}>
-						Product
-					</Link>
-					<Link to="/pricing" onClick={() => setMobileOpen(false)}>
-						Pricing
-					</Link>
-					<Link to="/community" onClick={() => setMobileOpen(false)}>
-						Community
-					</Link>
-					<Link to="/enterprise" onClick={() => setMobileOpen(false)}>
-						Enterprise
-					</Link>
+					{NAV_LINKS.map((link) => (
+						<Link
+							key={link.to}
+							to={link.to}
+							onClick={() => setMobileOpen(false)}
+						>
+							{link.label}
+						</Link>
+					))}
+					{isAdmin && (
+						<Link to="/admin" onClick={() => setMobileOpen(false)}>
+							Admin
+						</Link>
+					)}
 
 					<div className="mobile-actions">
-						{isSignedIn ?
-							<>
-								<Link
-									to="/profile"
-									className="greeting"
-									onClick={() => setMobileOpen(false)}
-								>
-									{userName ? `Hi, ${userName}` : "Signed in"}
-								</Link>
-								<Button size="sm" onClick={handleAuthClick} className="btn">
-									Log Out
-								</Button>
-							</>
-						:	<>
-								<Button onClick={handleAuthClick} size="sm" variant="ghost">
-									Log In
-								</Button>
-								<a
-									href="#upload"
-									className="cta"
-									onClick={() => setMobileOpen(false)}
+						<SignedOut>
+							<SignInButton mode="modal">
+								<button
+									className="btn btn--primary btn--md btn--full"
+									type="button"
 								>
 									Get Started
-								</a>
-							</>
-						}
+								</button>
+							</SignInButton>
+						</SignedOut>
+
+						<SignedIn>
+							<Link
+								to="/profile"
+								className="btn btn--secondary btn--md btn--full"
+								onClick={() => setMobileOpen(false)}
+							>
+								Profile
+							</Link>
+						</SignedIn>
 					</div>
 				</div>
 			)}
-		</header>
+		</nav>
 	);
-};
-
-export default Navbar;
+}

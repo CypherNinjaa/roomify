@@ -1,34 +1,40 @@
-const Skeleton = ({
-	className = "",
+export function Skeleton({
 	width,
 	height,
+	className,
 }: {
-	className?: string;
 	width?: string;
 	height?: string;
-}) => {
-	return <div className={`skeleton ${className}`} style={{ width, height }} />;
-};
+	className?: string;
+}) {
+	return (
+		<div
+			className={`skeleton ${className ?? ""}`}
+			style={{ width: width ?? "100%", height: height ?? "20px" }}
+		/>
+	);
+}
 
-export const ProjectCardSkeleton = () => (
-	<div className="project-card-skeleton">
-		<Skeleton className="skeleton-image" />
-		<div className="skeleton-body">
-			<Skeleton width="60%" height="16px" />
-			<Skeleton width="40%" height="12px" />
+export function ProjectCardSkeleton() {
+	return (
+		<div className="project-card-skeleton">
+			<div className="skeleton skeleton-image" />
+			<div className="skeleton-body">
+				<Skeleton height="16px" width="70%" />
+				<Skeleton height="12px" width="40%" />
+			</div>
 		</div>
-	</div>
-);
+	);
+}
 
-export const VisualizerSkeleton = () => (
-	<div className="visualizer-skeleton">
-		<div className="skeleton-header">
-			<Skeleton width="80px" height="12px" />
-			<Skeleton width="200px" height="28px" />
-			<Skeleton width="120px" height="12px" />
+export function VisualizerSkeleton() {
+	return (
+		<div className="visualizer-skeleton">
+			<div className="skeleton-header">
+				<Skeleton height="20px" width="200px" />
+				<Skeleton height="14px" width="120px" />
+			</div>
+			<Skeleton className="skeleton-render" />
 		</div>
-		<Skeleton className="skeleton-render" />
-	</div>
-);
-
-export default Skeleton;
+	);
+}

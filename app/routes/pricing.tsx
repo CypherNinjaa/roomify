@@ -1,76 +1,84 @@
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
+import { Link } from "react-router";
 import { Check, ArrowRight } from "lucide-react";
-import { useScrollAnimation } from "../../lib/useScrollAnimation";
+import Navbar from "~/components/Navbar";
+import Footer from "~/components/Footer";
+import { useScrollAnimation } from "~/lib/useScrollAnimation";
 
-const plans = [
+const PLANS = [
 	{
 		name: "Free",
 		price: "$0",
 		period: "forever",
-		description: "Perfect for trying out Roomify",
+		description: "Perfect for trying things out.",
 		features: [
-			"3 renders per month",
-			"Basic AI models",
-			"720p export resolution",
-			"Community support",
+			"3 projects per month",
+			"5 AI renders per month",
+			"Basic styles (modern, minimalist)",
+			"Standard resolution export",
+			"Community gallery access",
 		],
-		cta: "Get Started",
 		highlighted: false,
 	},
 	{
 		name: "Pro",
 		price: "$19",
 		period: "/month",
-		description: "For architects and designers",
+		description: "For professional architects & designers.",
 		features: [
-			"Unlimited renders",
-			"Premium AI models (Gemini + Claude)",
-			"4K export resolution",
-			"Priority rendering queue",
-			"Project history & hosting",
-			"Email support",
+			"Unlimited projects",
+			"50 AI renders per month",
+			"All 5 design styles",
+			"High resolution export",
+			"Priority AI processing",
+			"Cloud storage (10 GB)",
+			"Before/after comparison",
 		],
-		cta: "Start Free Trial",
 		highlighted: true,
 	},
 	{
 		name: "Team",
 		price: "$49",
 		period: "/month",
-		description: "For studios and agencies",
+		description: "For architecture firms & teams.",
 		features: [
 			"Everything in Pro",
-			"5 team members included",
-			"Shared project workspace",
-			"Custom branding on exports",
+			"Unlimited AI renders",
+			"Team collaboration",
+			"50 GB cloud storage",
+			"Custom branding",
 			"API access",
 			"Dedicated support",
+			"Admin dashboard",
 		],
-		cta: "Contact Sales",
 		highlighted: false,
 	},
 ];
 
 export default function Pricing() {
 	useScrollAnimation();
+
 	return (
-		<div className="page pricing-page page-transition">
+		<div className="page">
 			<Navbar />
 
 			<section className="page-hero">
-				<h1>Simple, transparent pricing</h1>
+				<h1>Simple Pricing</h1>
 				<p className="page-subtitle">
-					Start free, upgrade when you need more. No hidden fees.
+					Start free, upgrade when you need more. No hidden fees, cancel
+					anytime.
 				</p>
 			</section>
 
-			<section className="pricing-grid">
-				{plans.map((plan, index) => (
+			<div className="pricing-grid">
+				{PLANS.map((plan, i) => (
 					<div
 						key={plan.name}
-						className={`pricing-card animate-on-scroll delay-${index + 1} ${plan.highlighted ? "highlighted" : ""}`}
+						className={`pricing-card animate-on-scroll delay-${i + 1} ${plan.highlighted ? "highlighted" : ""}`}
 					>
+						{plan.highlighted && (
+							<span className="pricing-badge">Most Popular</span>
+						)}
+
 						<div className="pricing-header">
 							<h3>{plan.name}</h3>
 							<div className="price">
@@ -84,20 +92,20 @@ export default function Pricing() {
 							{plan.features.map((feature) => (
 								<li key={feature}>
 									<Check className="check" />
-									<span>{feature}</span>
+									{feature}
 								</li>
 							))}
 						</ul>
 
-						<a
-							href="/#upload"
-							className={`pricing-cta ${plan.highlighted ? "primary" : ""}`}
+						<Link
+							to="/"
+							className={`pricing-cta btn btn--outline btn--md ${plan.highlighted ? "primary" : ""}`}
 						>
-							{plan.cta} <ArrowRight className="icon" />
-						</a>
+							Get Started <ArrowRight size={14} className="icon" />
+						</Link>
 					</div>
 				))}
-			</section>
+			</div>
 
 			<Footer />
 		</div>

@@ -1,7 +1,7 @@
-import { Box } from "lucide-react";
 import { Link } from "react-router";
+import { Box } from "lucide-react";
 
-const Footer = () => {
+export default function Footer() {
 	return (
 		<footer className="footer">
 			<div className="footer-inner">
@@ -12,8 +12,8 @@ const Footer = () => {
 							<span className="name">Roomify</span>
 						</div>
 						<p className="tagline">
-							AI-powered architectural visualization. Transform 2D floor plans
-							into photorealistic 3D renders.
+							Transform 2D floor plans into stunning 3D renders with AI-powered
+							visualization.
 						</p>
 					</div>
 
@@ -40,16 +40,7 @@ const Footer = () => {
 							</li>
 							<li>
 								<a
-									href="https://discord.com/invite/n6EdbFJ"
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									Discord
-								</a>
-							</li>
-							<li>
-								<a
-									href="https://github.com/adrianhajdin/roomify"
+									href="https://github.com/CypherNinjaa/roomify"
 									target="_blank"
 									rel="noopener noreferrer"
 								>
@@ -65,28 +56,14 @@ const Footer = () => {
 							<li>
 								<Link to="/profile">Profile</Link>
 							</li>
-							<li>
-								<a
-									href="https://puter.com"
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									Puter Dashboard
-								</a>
-							</li>
 						</ul>
 					</div>
 				</div>
 
 				<div className="footer-bottom">
-					<p>
-						&copy; {new Date().getFullYear()} Roomify. Built with Puter &amp;
-						AI.
-					</p>
+					<p>&copy; {new Date().getFullYear()} Roomify. All rights reserved.</p>
 				</div>
 			</div>
 		</footer>
 	);
-};
-
-export default Footer;
+}

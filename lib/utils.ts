@@ -1,122 +1,45 @@
-export const HOSTING_CONFIG_KEY = "roomify_hosting_config";
-export const HOSTING_DOMAIN_SUFFIX = ".puter.site";
+/**
+ * Convert a File to a base64 data URL string.
+ */
+export function fileToBase64(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = reject;
+		reader.readAsDataURL(file);
+	});
+}
 
-export const isHostedUrl = (value: unknown): value is string =>
-    typeof value === "string" && value.includes(HOSTING_DOMAIN_SUFFIX);
+/**
+ * Extract the raw base64 data (without the data:...;base64, prefix).
+ */
+export function extractBase64Data(dataUrl: string): string {
+	const idx = dataUrl.indexOf(",");
+	return idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+}
 
-export const createHostingSlug = () =>
-    `roomify-${Date.now().toString(36)}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
+/**
+ * Extract the MIME type from a data URL.
+ */
+export function extractMimeType(dataUrl: string): string {
+	const match = dataUrl.match(/^data:([^;]+);/);
+	return match?.[1] ?? "image/png";
+}
 
-const normalizeHost = (subdomain: string) =>
-    subdomain.endsWith(HOSTING_DOMAIN_SUFFIX)
-        ? subdomain
-        : `${subdomain}${HOSTING_DOMAIN_SUFFIX}`;
+/**
+ * Format a timestamp to a human-readable date string.
+ */
+export function formatDate(timestamp: number): string {
+	return new Date(timestamp).toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+	});
+}
 
-export const getHostedUrl = (
-    hosting: { subdomain: string },
-    filePath: string,
-): string | null => {
-    if (!hosting?.subdomain) return null;
-    const host = normalizeHost(hosting.subdomain);
-    return `https://${host}/${filePath}`;
-};
-
-export const getImageExtension = (contentType: string, url: string): string => {
-    const type = (contentType || "").toLowerCase();
-    const typeMatch = type.match(/image\/(png|jpe?g|webp|gif|svg\+xml|svg)/);
-    if (typeMatch?.[1]) {
-        const ext = typeMatch[1].toLowerCase();
-        return ext === "jpeg" || ext === "jpg"
-            ? "jpg"
-            : ext === "svg+xml"
-                ? "svg"
-                : ext;
-    }
-
-    const dataMatch = url.match(/^data:image\/([a-z0-9+.-]+);/i);
-    if (dataMatch?.[1]) {
-        const ext = dataMatch[1].toLowerCase();
-        return ext === "jpeg" ? "jpg" : ext;
-    }
-
-    const extMatch = url.match(/\.([a-z0-9]+)(?:$|[?#])/i);
-    if (extMatch?.[1]) return extMatch[1].toLowerCase();
-
-    return "png";
-};
-
-export const dataUrlToBlob = (
-    dataUrl: string,
-): { blob: Blob; contentType: string } | null => {
-    try {
-        const match = dataUrl.match(/^data:([^;]+)?(;base64)?,([\s\S]*)$/i);
-        if (!match) return null;
-        const contentType = match[1] || "";
-        const isBase64 = !!match[2];
-        const data = match[3] || "";
-        const raw = isBase64
-            ? atob(data.replace(/\s/g, ""))
-            : decodeURIComponent(data);
-        const bytes = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; i += 1) {
-            bytes[i] = raw.charCodeAt(i);
-        }
-        return { blob: new Blob([bytes], { type: contentType }), contentType };
-    } catch {
-        return null;
-    }
-};
-
-export const fetchBlobFromUrl = async (
-    url: string,
-): Promise<{ blob: Blob; contentType: string } | null> => {
-    if (url.startsWith("data:")) {
-        return dataUrlToBlob(url);
-    }
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to fetch image");
-        return {
-            blob: await response.blob(),
-            contentType: response.headers.get("content-type") || "",
-        };
-    } catch {
-        return null;
-    }
-};
-
-export const imageUrlToPngBlob = async (url: string): Promise<Blob | null> => {
-    if (typeof window === "undefined") return null;
-
-    try {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-
-        const loaded = await new Promise<HTMLImageElement>((resolve, reject) => {
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error("Failed to load image"));
-            img.src = url;
-        });
-
-        const width = loaded.naturalWidth || loaded.width;
-        const height = loaded.naturalHeight || loaded.height;
-        if (!width || !height) return null;
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-
-        ctx.drawImage(loaded, 0, 0, width, height);
-
-        return await new Promise<Blob | null>((resolve) => {
-            canvas.toBlob((result) => resolve(result), "image/png");
-        });
-    } catch {
-        return null;
-    }
-};
+/**
+ * Generate a unique project ID.
+ */
+export function generateProjectId(): string {
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}

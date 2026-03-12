@@ -1,37 +1,24 @@
-import { type ButtonHTMLAttributes } from 'react';
+export default function Button({
+	variant = "primary",
+	size = "md",
+	fullWidth = false,
+	className,
+	children,
+	...props
+}: ButtonProps) {
+	const classes = [
+		"btn",
+		`btn--${variant}`,
+		`btn--${size}`,
+		fullWidth ? "btn--full" : "",
+		className ?? "",
+	]
+		.filter(Boolean)
+		.join(" ");
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'outline';
-  size?: 'sm' | 'md' | 'lg';
-  fullWidth?: boolean;
+	return (
+		<button className={classes} {...props}>
+			{children}
+		</button>
+	);
 }
-
-const Button = ({
-  variant = 'primary',
-  size = 'md',
-  fullWidth = false,
-  className = '',
-  children,
-  ...props
-}: ButtonProps) => {
-  const baseClass = 'btn';
-  const variantClass = `btn--${variant}`;
-  const sizeClass = `btn--${size}`;
-  const fullWidthClass = fullWidth ? 'btn--full' : '';
-
-  const combinedClasses = [
-    baseClass,
-    variantClass,
-    sizeClass,
-    fullWidthClass,
-    className
-  ].filter(Boolean).join(' ');
-
-  return (
-    <button className={combinedClasses} {...props}>
-      {children}
-    </button>
-  );
-};
-
-export default Button;

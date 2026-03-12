@@ -1,76 +1,90 @@
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
-import { Building2, Shield, Users, Headphones, ArrowRight } from "lucide-react";
-import { useScrollAnimation } from "../../lib/useScrollAnimation";
+import { Link } from "react-router";
+import {
+	Server,
+	Users,
+	Shield,
+	HeadphonesIcon,
+	BarChart3,
+	Globe,
+	ArrowRight,
+} from "lucide-react";
+import Navbar from "~/components/Navbar";
+import Footer from "~/components/Footer";
+import { useScrollAnimation } from "~/lib/useScrollAnimation";
+
+const FEATURES = [
+	{
+		icon: Server,
+		title: "Custom Deployment",
+		desc: "On-premise or private cloud deployment options. Full control over your infrastructure with SLA guarantees.",
+	},
+	{
+		icon: Users,
+		title: "Unlimited Team Members",
+		desc: "Scale your team without limits. Role-based access control, team workspaces, and collaborative project management.",
+	},
+	{
+		icon: Shield,
+		title: "Enterprise Security",
+		desc: "SOC 2 compliance, SSO integration, data encryption at rest and in transit, and audit logging.",
+	},
+	{
+		icon: HeadphonesIcon,
+		title: "Dedicated Support",
+		desc: "24/7 priority support with a dedicated account manager. Custom onboarding and training for your team.",
+	},
+	{
+		icon: BarChart3,
+		title: "Advanced Analytics",
+		desc: "Detailed usage analytics, render quality metrics, and team productivity insights with exportable reports.",
+	},
+	{
+		icon: Globe,
+		title: "White-Label Solution",
+		desc: "Custom branding, domain mapping, and client-facing portals. Make Roomify your own.",
+	},
+];
 
 export default function Enterprise() {
 	useScrollAnimation();
+
 	return (
-		<div className="page enterprise-page page-transition">
+		<div className="page">
 			<Navbar />
 
 			<section className="page-hero">
-				<h1>Roomify for Enterprise</h1>
+				<h1>Enterprise Solutions</h1>
 				<p className="page-subtitle">
-					Scalable AI visualization for architecture firms, real estate
-					agencies, and construction companies. Custom solutions for teams of
-					any size.
+					Tailored AI visualization for architecture firms, real estate
+					developers, and design agencies.
 				</p>
 			</section>
 
-			<section className="features-grid">
-				<div className="feature-card">
-					<div className="feature-icon">
-						<Building2 className="icon" />
+			<div className="features-grid">
+				{FEATURES.map((feature, i) => (
+					<div
+						key={feature.title}
+						className={`feature-card animate-on-scroll delay-${(i % 4) + 1}`}
+					>
+						<div className="feature-icon">
+							<feature.icon className="icon" />
+						</div>
+						<h3>{feature.title}</h3>
+						<p>{feature.desc}</p>
 					</div>
-					<h3>Custom Deployment</h3>
-					<p>
-						On-premise or private cloud deployment options to meet your security
-						and compliance requirements.
-					</p>
-				</div>
+				))}
+			</div>
 
-				<div className="feature-card">
-					<div className="feature-icon">
-						<Users className="icon" />
-					</div>
-					<h3>Unlimited Team Members</h3>
-					<p>
-						Add your entire organization with role-based access control, shared
-						workspaces, and team analytics.
-					</p>
-				</div>
-
-				<div className="feature-card">
-					<div className="feature-icon">
-						<Shield className="icon" />
-					</div>
-					<h3>Enterprise Security</h3>
-					<p>
-						SSO integration, data encryption at rest and in transit, audit logs,
-						and SOC 2 compliance.
-					</p>
-				</div>
-
-				<div className="feature-card">
-					<div className="feature-icon">
-						<Headphones className="icon" />
-					</div>
-					<h3>Dedicated Support</h3>
-					<p>
-						24/7 priority support with a dedicated account manager and custom
-						SLAs for your team.
-					</p>
-				</div>
-			</section>
-
-			<section className="page-cta">
-				<h2>Ready to scale your visualization workflow?</h2>
+			<section className="page-cta animate-scale-on-scroll">
+				<h2>Ready for Enterprise?</h2>
 				<p className="cta-subtitle">
-					Talk to our sales team to get a tailored plan for your organization.
+					Contact our team for a custom demo and pricing.
 				</p>
-				<a href="mailto:enterprise@roomify.com" className="cta-btn">
-					Contact Sales <ArrowRight className="icon" />
+				<a
+					href="mailto:enterprise@roomify.com"
+					className="cta-btn btn btn--primary btn--lg"
+				>
+					Contact Sales <ArrowRight size={16} className="icon" />
 				</a>
 			</section>
 

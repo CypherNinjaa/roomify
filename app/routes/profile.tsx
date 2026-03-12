@@ -1,108 +1,131 @@
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
-import { useOutletContext, useNavigate } from "react-router";
-import { useEffect, useState } from "react";
-import { getProjects } from "../../lib/puter.action";
-import { Clock, ArrowUpRight, User, LogIn } from "lucide-react";
-import Button from "../../components/ui/Button";
+import { useState, useEffect } from "react";
+import { Link } from "react-router";
+import {
+	useUser,
+	SignInButton,
+	SignedIn,
+	SignedOut,
+} from "@clerk/react-router";
+import { ArrowUpRight, FolderOpen, LogIn } from "lucide-react";
+import Navbar from "~/components/Navbar";
+import Footer from "~/components/Footer";
+import { ProjectCardSkeleton } from "~/components/Skeleton";
+import { formatDate } from "~/lib/utils";
 
 export default function Profile() {
-	const { isSignedIn, userName, userId, signIn } =
-		useOutletContext<AuthContext>();
-	const navigate = useNavigate();
+	const { user, isSignedIn } = useUser();
 	const [projects, setProjects] = useState<DesignItem[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
+	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		if (!isSignedIn) {
-			setIsLoading(false);
-			return;
+		if (isSignedIn && user) {
+			fetchProjects();
+		} else {
+			setLoading(false);
 		}
+	}, [isSignedIn, user]);
 
-		const fetchMyProjects = async () => {
-			setIsLoading(true);
-			const items = await getProjects();
-			setProjects(items);
-			setIsLoading(false);
-		};
-		fetchMyProjects();
-	}, [isSignedIn]);
-
-	if (!isSignedIn) {
-		return (
-			<div className="page profile-page">
-				<Navbar />
-				<section className="page-hero">
-					<h1>Your Profile</h1>
-					<p className="page-subtitle">
-						Sign in to view your projects and account details.
-					</p>
-					<Button size="lg" onClick={() => signIn()} className="sign-in-btn">
-						<LogIn className="w-4 h-4 mr-2" /> Sign In with Puter
-					</Button>
-				</section>
-
-				<Footer />
-			</div>
-		);
-	}
+	const fetchProjects = async () => {
+		try {
+			setLoading(true);
+			const res = await fetch("/api/projects");
+			if (res.ok) {
+				const data = (await res.json()) as { projects: DesignItem[] };
+				setProjects(data.projects);
+			}
+		} catch {
+			/* ignore */
+		} finally {
+			setLoading(false);
+		}
+	};
 
 	return (
-		<div className="page profile-page">
+		<div className="page">
 			<Navbar />
 
-			<section className="page-hero">
-				<div className="profile-avatar">
-					<User className="avatar-icon" />
-				</div>
-				<h1>{userName || "Your Profile"}</h1>
-				<p className="page-subtitle">
-					{projects.length} project{projects.length !== 1 ? "s" : ""} created
-				</p>
-			</section>
-
-			<section className="profile-projects">
-				{isLoading ?
-					<p className="loading-text">Loading your projects...</p>
-				: projects.length === 0 ?
-					<div className="empty-state">
-						<p>You haven't created any projects yet.</p>
-						<a href="/#upload" className="cta-link">
-							Upload your first floor plan
-						</a>
+			<SignedOut>
+				<div className="auth-gate">
+					<div className="auth-icon">
+						<LogIn size={28} className="text-primary" />
 					</div>
-				:	<div className="profile-grid">
-						{projects.map(
-							({ id, name, renderedImage, sourceImage, timestamp }) => (
-								<div
-									key={id}
+					<h2>Sign In to Continue</h2>
+					<p>Access your projects, renders, and settings.</p>
+					<SignInButton mode="modal">
+						<button className="btn btn--primary btn--md" type="button">
+							Sign In
+						</button>
+					</SignInButton>
+				</div>
+			</SignedOut>
+
+			<SignedIn>
+				<section className="page-hero">
+					<div className="profile-header">
+						<h1>{user?.fullName ?? user?.username ?? "Your Profile"}</h1>
+						<div className="profile-stats">
+							<div className="stat">
+								<FolderOpen size={14} />
+								<span className="stat-value">{projects.length}</span> projects
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<div className="profile-projects">
+					{loading ?
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+							{[1, 2, 3].map((i) => (
+								<ProjectCardSkeleton key={i} />
+							))}
+						</div>
+					: projects.length > 0 ?
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+							{projects.map((project) => (
+								<Link
+									key={project.id}
+									to={`/visualizer/${project.id}`}
+									state={{
+										sourceImage: project.sourceImage,
+										projectName: project.name,
+									}}
 									className="project-card group"
-									onClick={() => navigate(`/visualizer/${id}`)}
 								>
 									<div className="preview">
 										<img
-											src={renderedImage || sourceImage}
-											alt={name || "Project"}
+											src={project.renderedImage ?? project.sourceImage}
+											alt={project.name}
 										/>
+										{project.renderedImage && (
+											<div className="badge">
+												<span>Rendered</span>
+											</div>
+										)}
 									</div>
 									<div className="card-body">
-										<div>
-											<h3>{name || `Project ${id}`}</h3>
+										<div className="card-info">
+											<h3>{project.name}</h3>
 											<div className="meta">
-												<Clock size={12} />
-												<span>{new Date(timestamp).toLocaleDateString()}</span>
+												<span>{formatDate(project.timestamp)}</span>
 											</div>
 										</div>
 										<div className="arrow">
-											<ArrowUpRight size={18} />
+											<ArrowUpRight size={16} />
 										</div>
 									</div>
-								</div>
-							),
-						)}
-					</div>
-				}
-			</section>
+								</Link>
+							))}
+						</div>
+					:	<div className="empty-state">
+							<FolderOpen size={48} className="mx-auto mb-4 text-stone-300" />
+							<p>No projects yet. Upload your first floor plan!</p>
+							<Link to="/" className="cta-link">
+								Get Started
+							</Link>
+						</div>
+					}
+				</div>
+			</SignedIn>
 
 			<Footer />
 		</div>

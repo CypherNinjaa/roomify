@@ -6,28 +6,14 @@ import {
 	Scripts,
 	ScrollRestoration,
 } from "react-router";
-
 import type { Route } from "./+types/root";
+import { ClerkProvider } from "@clerk/react-router";
+import { rootAuthLoader } from "@clerk/react-router/ssr.server";
 import "./app.css";
-import { useEffect, useState } from "react";
-import {
-	getCurrentUser,
-	signIn as puterSignIn,
-	signOut as puterSignOut,
-} from "../lib/puter.action";
 
-export const links: Route.LinksFunction = () => [
-	{ rel: "preconnect", href: "https://fonts.googleapis.com" },
-	{
-		rel: "preconnect",
-		href: "https://fonts.gstatic.com",
-		crossOrigin: "anonymous",
-	},
-	{
-		rel: "stylesheet",
-		href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-	},
-];
+export async function loader(args: Route.LoaderArgs) {
+	return rootAuthLoader(args);
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
 	return (
@@ -35,6 +21,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 			<head>
 				<meta charSet="utf-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<link rel="preconnect" href="https://fonts.googleapis.com" />
+				<link
+					rel="preconnect"
+					href="https://fonts.gstatic.com"
+					crossOrigin="anonymous"
+				/>
+				<link
+					href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+					rel="stylesheet"
+				/>
 				<Meta />
 				<Links />
 			</head>
@@ -47,90 +43,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
 	);
 }
 
-const DEFAULT_AUTH_STATE: AuthState = {
-	isSignedIn: false,
-	userName: null,
-	userId: null,
-};
-
-export default function App() {
-	const [authState, setAuthState] = useState<AuthState>(DEFAULT_AUTH_STATE);
-
-	const refreshAuth = async () => {
-		try {
-			const user = await getCurrentUser();
-
-			setAuthState({
-				isSignedIn: !!user,
-				userName: user?.username || null,
-				userId: user?.uuid || null,
-			});
-
-			return !!user;
-		} catch {
-			setAuthState(DEFAULT_AUTH_STATE);
-			return false;
-		}
-	};
-
-	useEffect(() => {
-		refreshAuth();
-	}, []);
-
-	const signIn = async () => {
-		await puterSignIn();
-		return await refreshAuth();
-	};
-
-	const signOut = async () => {
-		puterSignOut();
-		return await refreshAuth();
-	};
-
+export default function App({ loaderData }: Route.ComponentProps) {
 	return (
-		<main className="min-h-screen bg-background text-foreground relative z-10">
-			<Outlet context={{ ...authState, refreshAuth, signIn, signOut }} />;
-		</main>
+		<ClerkProvider loaderData={loaderData}>
+			<Outlet />
+		</ClerkProvider>
 	);
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-	let message = "Oops!";
-	let details = "An unexpected error occurred.";
-	let stack: string | undefined;
-	let is404 = false;
+	let title = "Something went wrong";
+	let detail = "An unexpected error occurred. Please try again.";
+	let code = "500";
 
 	if (isRouteErrorResponse(error)) {
-		is404 = error.status === 404;
-		message = is404 ? "404" : `${error.status}`;
-		details =
-			is404 ?
+		code = String(error.status);
+		title = error.status === 404 ? "Page not found" : "Error";
+		detail =
+			error.status === 404 ?
 				"The page you're looking for doesn't exist or has been moved."
-			:	error.statusText || details;
-	} else if (import.meta.env.DEV && error && error instanceof Error) {
-		details = error.message;
-		stack = error.stack;
+			:	(error.statusText ?? detail);
+	} else if (error instanceof Error) {
+		detail = error.message;
 	}
 
 	return (
-		<main className="error-page">
+		<div className="error-page">
 			<div className="error-content">
-				<span className="error-code">{message}</span>
-				<h1 className="error-title">
-					{is404 ? "Page Not Found" : "Something Went Wrong"}
-				</h1>
-				<p className="error-detail">{details}</p>
+				<p className="error-code">{code}</p>
+				<h1 className="error-title">{title}</h1>
+				<p className="error-detail">{detail}</p>
 				<div className="error-actions">
-					<a href="/" className="error-home-btn">
+					<a href="/" className="error-home-btn btn btn--primary btn--lg">
 						Back to Home
 					</a>
 				</div>
-				{stack && (
-					<pre className="error-stack">
-						<code>{stack}</code>
-					</pre>
-				)}
 			</div>
-		</main>
+		</div>
 	);
 }

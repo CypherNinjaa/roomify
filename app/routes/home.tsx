@@ -1,184 +1,293 @@
-import type { Route } from "./+types/home";
-import Navbar from "../../components/Navbar";
-import { ArrowRight, ArrowUpRight, Clock, Layers } from "lucide-react";
-import Button from "../../components/ui/Button";
-import Upload from "../../components/Upload";
-import Footer from "../../components/Footer";
-import { useNavigate } from "react-router";
-import { useEffect, useRef, useState } from "react";
-import { createProject, getProjects } from "../../lib/puter.action";
-import { useScrollAnimation } from "../../lib/useScrollAnimation";
-import { ProjectCardSkeleton } from "../../components/Skeleton";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router";
+import {
+	useUser,
+	SignInButton,
+	SignedIn,
+	SignedOut,
+} from "@clerk/react-router";
+import {
+	ArrowRight,
+	Sparkles,
+	Upload as UploadIcon,
+	Layers,
+	Zap,
+	Eye,
+	Download,
+	ArrowUpRight,
+} from "lucide-react";
+import Navbar from "~/components/Navbar";
+import Footer from "~/components/Footer";
+import Upload from "~/components/Upload";
+import { ProjectCardSkeleton } from "~/components/Skeleton";
+import { fileToBase64, generateProjectId, formatDate } from "~/lib/utils";
+import { useScrollAnimation } from "~/lib/useScrollAnimation";
 
-export function meta({}: Route.MetaArgs) {
-	return [
-		{ title: "New React Router App" },
-		{ name: "description", content: "Welcome to React Router!" },
-	];
-}
+const FEATURES = [
+	{
+		icon: Sparkles,
+		title: "AI-Powered Rendering",
+		desc: "Transform flat floor plans into photorealistic 3D interiors using Google Gemini AI.",
+	},
+	{
+		icon: Eye,
+		title: "Before & After Compare",
+		desc: "Side-by-side slider to compare your original plan with the AI-generated render.",
+	},
+	{
+		icon: Layers,
+		title: "5 Design Styles",
+		desc: "Modern, rustic, minimalist, industrial, and scandinavian — generate any style instantly.",
+	},
+	{
+		icon: Download,
+		title: "Instant Export",
+		desc: "Download your renders in high resolution, ready for client presentations.",
+	},
+	{
+		icon: Zap,
+		title: "Cloud Storage",
+		desc: "All projects stored securely on Cloudinary CDN with instant global delivery.",
+	},
+	{
+		icon: UploadIcon,
+		title: "Drag & Drop Upload",
+		desc: "Simply drag your floor plan image and let AI do the rest. No complex setup needed.",
+	},
+];
 
 export default function Home() {
+	const { isSignedIn, user } = useUser();
 	const navigate = useNavigate();
 	const [projects, setProjects] = useState<DesignItem[]>([]);
-	const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-	const isCreatingProjectRef = useRef(false);
+	const [loading, setLoading] = useState(true);
 	useScrollAnimation();
 
-	const handleUploadComplete = async (base64Image: string) => {
+	useEffect(() => {
+		if (isSignedIn && user) {
+			fetchProjects();
+		} else {
+			setLoading(false);
+		}
+	}, [isSignedIn, user]);
+
+	const fetchProjects = async () => {
 		try {
-			if (isCreatingProjectRef.current) return false;
-			isCreatingProjectRef.current = true;
-			const newId = Date.now().toString();
-			const name = `Residence ${newId}`;
-
-			const newItem = {
-				id: newId,
-				name,
-				sourceImage: base64Image,
-				renderedImage: undefined,
-				timestamp: Date.now(),
-			};
-
-			const saved = await createProject({
-				item: newItem,
-				visibility: "private",
-			});
-
-			if (!saved) {
-				console.error("Failed to create project");
-				return false;
+			setLoading(true);
+			const res = await fetch("/api/projects");
+			if (res.ok) {
+				const data = (await res.json()) as { projects: DesignItem[] };
+				setProjects(data.projects);
 			}
-
-			setProjects((prev) => [saved, ...prev]);
-
-			navigate(`/visualizer/${newId}`, {
-				state: {
-					initialImage: saved.sourceImage,
-					initialRendered: saved.renderedImage || null,
-					name,
-				},
-			});
-
-			return true;
+		} catch {
+			/* ignore */
 		} finally {
-			isCreatingProjectRef.current = false;
+			setLoading(false);
 		}
 	};
 
-	useEffect(() => {
-		const fetchProjects = async () => {
-			setIsLoadingProjects(true);
-			const items = await getProjects();
-			setProjects(items);
-			setIsLoadingProjects(false);
-		};
+	const handleUploadComplete = async (file: File) => {
+		if (!isSignedIn || !user) return;
 
-		fetchProjects();
-	}, []);
+		const base64 = await fileToBase64(file);
+		const projectId = generateProjectId();
+		const projectName = file.name.replace(/\.[^.]+$/, "");
+
+		// Upload to Cloudinary
+		let sourceUrl = base64;
+		try {
+			const folder = `roomify/projects/${user.id}/${projectId}/source`;
+			const res = await fetch("/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ imageBase64: base64, folder, projectName }),
+			});
+			if (res.ok) {
+				const result = (await res.json()) as CloudinaryUploadResult;
+				sourceUrl = result.secure_url;
+			}
+		} catch {
+			// Fall back to base64 if upload fails
+		}
+
+		navigate(`/visualizer/${projectId}`, {
+			state: { sourceImage: sourceUrl, projectName },
+		});
+	};
 
 	return (
-		<div className="home page-transition">
+		<div className="home">
 			<Navbar />
 
+			{/* Hero */}
 			<section className="hero">
-				<div className="announce">
-					<div className="dot">
-						<div className="pulse"></div>
-					</div>
-
-					<p>Introducing Roomify 2.0</p>
+				<div className="badge">
+					<span className="dot" />
+					<span>AI-Powered Architecture</span>
 				</div>
 
-				<h1>Build beautiful spaces at the speed of thought with Roomify</h1>
+				<h1>
+					Turn Floor Plans Into <span className="highlight">Stunning 3D</span>{" "}
+					Renders
+				</h1>
 
 				<p className="subtitle">
-					Roomify is an AI-first design environment that helps you visualize,
-					render, and ship architectural projects faster than ever.
+					Upload any 2D floor plan and watch AI transform it into a
+					photorealistic 3D visualization. Perfect for architects, designers,
+					and real estate professionals.
 				</p>
 
-				<div className="actions">
-					<a href="#upload" className="cta">
-						Start Building <ArrowRight className="icon" />
-					</a>
-
-					<Button variant="outline" size="lg" className="demo">
-						Watch Demo
-					</Button>
+				<div className="hero-actions">
+					<SignedOut>
+						<SignInButton mode="modal">
+							<button
+								className="cta-primary btn btn--primary btn--lg"
+								type="button"
+							>
+								Get Started Free <ArrowRight size={16} />
+							</button>
+						</SignInButton>
+					</SignedOut>
+					<SignedIn>
+						<a href="#upload" className="cta-primary">
+							Start Building <ArrowRight size={16} />
+						</a>
+					</SignedIn>
+					<Link
+						to="/product"
+						className="cta-secondary btn btn--secondary btn--lg"
+					>
+						See How It Works
+					</Link>
 				</div>
 
-				<div id="upload" className="upload-shell animate-on-scroll">
-					<div className="grid-overlay" />
-
-					<div className="upload-card">
-						<div className="upload-head">
+				<div id="upload" className="upload-section">
+					<div className="upload-wrapper">
+						<div className="upload-header">
 							<div className="upload-icon">
-								<Layers className="icon" />
+								<UploadIcon className="icon" />
 							</div>
-
-							<h3>Upload your floor plan</h3>
-							<p>Supports JPG, PNG, formats up to 10MB</p>
+							<h3>Upload Your Floor Plan</h3>
+							<p>Drag & drop or click to select your 2D plan</p>
 						</div>
 
-						<Upload onComplete={handleUploadComplete} />
+						<SignedIn>
+							<Upload onComplete={handleUploadComplete} />
+						</SignedIn>
+
+						<SignedOut>
+							<div className="auth-gate">
+								<p>Sign in to start uploading floor plans</p>
+								<SignInButton mode="modal">
+									<button className="btn btn--primary btn--md" type="button">
+										Sign In to Upload
+									</button>
+								</SignInButton>
+							</div>
+						</SignedOut>
 					</div>
 				</div>
 			</section>
 
-			<section className="projects animate-on-scroll">
-				<div className="section-inner">
-					<div className="section-head">
-						<div className="copy">
-							<h2>Projects</h2>
-							<p>
-								Your latest work and shared community projects, all in one
-								place.
-							</p>
-						</div>
+			{/* Features */}
+			<section className="features">
+				<div className="features-inner">
+					<div className="features-header animate-on-scroll">
+						<h2>Everything You Need</h2>
+						<p>
+							Powerful AI tools designed for architecture professionals and
+							enthusiasts.
+						</p>
 					</div>
 
-					<div className="projects-grid">
-						{isLoadingProjects ?
-							Array.from({ length: 6 }).map((_, i) => (
-								<ProjectCardSkeleton key={i} />
-							))
-						:	projects.map(
-								({ id, name, renderedImage, sourceImage, timestamp }) => (
-									<div
-										key={id}
+					<div className="features-grid">
+						{FEATURES.map((feature, i) => (
+							<div
+								key={feature.title}
+								className={`feature-card animate-on-scroll delay-${(i % 4) + 1}`}
+							>
+								<div className="feature-icon">
+									<feature.icon className="icon" />
+								</div>
+								<h3>{feature.title}</h3>
+								<p>{feature.desc}</p>
+							</div>
+						))}
+					</div>
+				</div>
+			</section>
+
+			{/* Recent Projects */}
+			<SignedIn>
+				<section className="projects">
+					<div className="section-inner">
+						<div className="section-header animate-on-scroll">
+							<div>
+								<h2>Your Projects</h2>
+								<p>Recent floor plan visualizations</p>
+							</div>
+							{projects.length > 0 && (
+								<Link to="/profile" className="btn btn--ghost btn--sm">
+									View All <ArrowUpRight size={14} />
+								</Link>
+							)}
+						</div>
+
+						{loading ?
+							<div className="projects-grid">
+								{[1, 2, 3].map((i) => (
+									<ProjectCardSkeleton key={i} />
+								))}
+							</div>
+						: projects.length > 0 ?
+							<div className="projects-grid">
+								{projects.slice(0, 6).map((project) => (
+									<Link
+										key={project.id}
+										to={`/visualizer/${project.id}`}
+										state={{
+											sourceImage: project.sourceImage,
+											projectName: project.name,
+										}}
 										className="project-card group"
-										onClick={() => navigate(`/visualizer/${id}`)}
 									>
 										<div className="preview">
-											<img src={renderedImage || sourceImage} alt="Project" />
-
-											<div className="badge">
-												<span>Community</span>
-											</div>
+											<img
+												src={project.renderedImage ?? project.sourceImage}
+												alt={project.name}
+											/>
+											{project.renderedImage && (
+												<div className="badge">
+													<span>Rendered</span>
+												</div>
+											)}
 										</div>
-
 										<div className="card-body">
-											<div>
-												<h3>{name}</h3>
-
+											<div className="card-info">
+												<h3>{project.name}</h3>
 												<div className="meta">
-													<Clock size={12} />
-													<span>
-														{new Date(timestamp).toLocaleDateString()}
-													</span>
-													<span>By JS Mastery</span>
+													<span>{formatDate(project.timestamp)}</span>
 												</div>
 											</div>
 											<div className="arrow">
-												<ArrowUpRight size={18} />
+												<ArrowUpRight size={16} />
 											</div>
 										</div>
-									</div>
-								),
-							)
+									</Link>
+								))}
+							</div>
+						:	<div className="empty-state">
+								<p>
+									No projects yet. Upload your first floor plan to get started!
+								</p>
+								<a href="#upload" className="cta-link">
+									Upload Now
+								</a>
+							</div>
 						}
 					</div>
-				</div>
-			</section>
+				</section>
+			</SignedIn>
 
 			<Footer />
 		</div>

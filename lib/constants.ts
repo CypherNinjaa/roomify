@@ -1,101 +1,64 @@
-export const PUTER_WORKER_URL = (
-	import.meta.env.VITE_PUTER_WORKER_URL || ""
-).replace(/\/+$/, "");
-
-// Storage Paths
+/* ─── Storage Paths ─── */
 export const STORAGE_PATHS = {
 	ROOT: "roomify",
-	SOURCES: "roomify/sources",
-	RENDERS: "roomify/renders",
+	projects: (userId: string) => `roomify/projects/${userId}`,
+	source: (userId: string, projectId: string) =>
+		`roomify/projects/${userId}/${projectId}/source`,
+	rendered: (userId: string, projectId: string, style: string) =>
+		`roomify/projects/${userId}/${projectId}/rendered_${style}`,
 } as const;
 
-// Timing Constants (in milliseconds)
-export const SHARE_STATUS_RESET_DELAY_MS = 1500;
-export const PROGRESS_INCREMENT = 15;
+/* ─── Timing ─── */
+export const PROGRESS_INCREMENT = 8;
+export const PROGRESS_INTERVAL_MS = 200;
 export const REDIRECT_DELAY_MS = 600;
-export const PROGRESS_INTERVAL_MS = 100;
-export const PROGRESS_STEP = 5;
+export const SHARE_STATUS_RESET_DELAY_MS = 3000;
 
-// UI Constants
-export const GRID_OVERLAY_SIZE = "60px 60px";
-export const GRID_COLOR = "#3B82F6";
-
-// HTTP Status Codes
-export const UNAUTHORIZED_STATUSES = [401, 403];
-
-// Image Dimensions
-export const IMAGE_RENDER_DIMENSION = 1024;
-
+/* ─── Room Styles ─── */
 export const ROOM_STYLES = [
-	{
-		id: "modern",
-		label: "Modern",
-		description: "Clean lines, minimalist furniture, neutral tones",
-	},
-	{
-		id: "rustic",
-		label: "Rustic",
-		description: "Warm wood, stone accents, cozy textures",
-	},
+	{ id: "modern", label: "Modern", description: "Clean lines, neutral tones" },
+	{ id: "rustic", label: "Rustic", description: "Warm wood, natural charm" },
 	{
 		id: "minimalist",
 		label: "Minimalist",
-		description: "Ultra-clean, sparse furnishing, white spaces",
+		description: "Less is more, open space",
 	},
 	{
 		id: "industrial",
 		label: "Industrial",
-		description: "Exposed brick, metal, concrete, raw finishes",
+		description: "Raw materials, urban edge",
 	},
 	{
 		id: "scandinavian",
 		label: "Scandinavian",
-		description: "Light wood, soft pastels, hygge aesthetic",
+		description: "Light, airy, hygge",
 	},
 ] as const;
 
-export type RoomStyleId = (typeof ROOM_STYLES)[number]["id"];
-
-export const STYLE_PROMPTS: Record<RoomStyleId, string> = {
+export const STYLE_PROMPTS: Record<string, string> = {
 	modern:
-		"STYLE OVERRIDE: Use a modern contemporary interior design style — clean geometric lines, minimalist furniture, neutral color palette (white, grey, black with warm wood accents), large glass elements, and sleek finishes.",
+		"modern interior with clean lines, neutral palette, contemporary furniture, glass and steel accents",
 	rustic:
-		"STYLE OVERRIDE: Use a rustic/farmhouse interior design style — warm natural wood floors and beams, stone accent walls, earthy tones (brown, beige, forest green), cozy woven textiles, and vintage-inspired furniture.",
+		"rustic interior with exposed wooden beams, stone walls, vintage furniture, warm earthy tones",
 	minimalist:
-		"STYLE OVERRIDE: Use an ultra-minimalist interior design style — all-white or very light walls and floors, extremely sparse furnishing, hidden storage, no decorative clutter, emphasis on negative space and natural light.",
+		"minimalist interior with pure white walls, essential furniture only, zen-like simplicity, natural light",
 	industrial:
-		"STYLE OVERRIDE: Use an industrial loft interior design style — exposed brick walls, concrete floors, visible metal ductwork and pipes, Edison bulb lighting, raw steel furniture frames, and dark moody tones.",
+		"industrial loft with exposed brick, metal piping, concrete floors, Edison bulbs, raw materials",
 	scandinavian:
-		"STYLE OVERRIDE: Use a Scandinavian interior design style — light blonde wood, soft pastel accents (blush pink, sage green), rounded organic furniture shapes, wool and linen textures, and abundant natural light.",
+		"scandinavian interior with light wood floors, white walls, cozy textiles, houseplants, soft natural light",
 };
 
-export const ROOMIFY_RENDER_PROMPT = `
-TASK: Convert the input 2D floor plan into a **photorealistic, top‑down 3D architectural render**.
+/* ─── AI Render Prompt ─── */
+export const ROOMIFY_RENDER_PROMPT = `You are an expert architectural visualization AI. Transform the provided 2D floor plan into a photorealistic 3D interior render.
 
-STRICT REQUIREMENTS (do not violate):
-1) **REMOVE ALL TEXT**: Do not render any letters, numbers, labels, dimensions, or annotations. Floors must be continuous where text used to be.
-2) **GEOMETRY MUST MATCH**: Walls, rooms, doors, and windows must follow the exact lines and positions in the plan. Do not shift or resize.
-3) **TOP‑DOWN ONLY**: Orthographic top‑down view. No perspective tilt.
-4) **CLEAN, REALISTIC OUTPUT**: Crisp edges, balanced lighting, and realistic materials. No sketch/hand‑drawn look.
-5) **NO EXTRA CONTENT**: Do not add rooms, furniture, or objects that are not clearly indicated by the plan.
+Requirements:
+- Output ONLY the rendered image, no text or annotations
+- Maintain exact room dimensions and layout from the floor plan
+- Add realistic lighting (natural + artificial)
+- Include appropriate furniture & decor for the room type
+- Use high-quality materials and textures
+- Camera angle: slightly elevated perspective showing depth
+- Resolution: photorealistic quality, magazine-worthy
+- Style: {STYLE_OVERRIDE}
 
-STRUCTURE & DETAILS:
-- **Walls**: Extrude precisely from the plan lines. Consistent wall height and thickness.
-- **Doors**: Convert door swing arcs into open doors, aligned to the plan.
-- **Windows**: Convert thin perimeter lines into realistic glass windows.
-
-FURNITURE & ROOM MAPPING (only where icons/fixtures are clearly shown):
-- Bed icon → realistic bed with duvet and pillows.
-- Sofa icon → modern sectional or sofa.
-- Dining table icon → table with chairs.
-- Kitchen icon → counters with sink and stove.
-- Bathroom icon → toilet, sink, and tub/shower.
-- Office/study icon → desk, chair, and minimal shelving.
-- Porch/patio/balcony icon → outdoor seating or simple furniture (keep minimal).
-- Utility/laundry icon → washer/dryer and minimal cabinetry.
-
-STYLE & LIGHTING:
-- Lighting: bright, neutral daylight. High clarity and balanced contrast.
-- Materials: realistic wood/tile floors, clean walls, subtle shadows.
-- Finish: professional architectural visualization; no text, no watermarks, no logos.
-`.trim();
+IMPORTANT: The output must be a single photorealistic image. Do NOT include any text, labels, measurements, or overlays.`;
