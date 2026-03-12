@@ -763,10 +763,13 @@ h6 {
 				@apply text-xs text-muted;
 			}
 			.compare-stage {
-				@apply relative bg-stone-100 overflow-hidden;
-			}
-			.compare-img {
-				@apply w-full h-auto object-contain;
+				@apply relative bg-stone-100 overflow-hidden rounded-xl;
+				[data-rcs="root"] {
+					@apply w-full;
+				}
+				img {
+					@apply w-full h-full object-contain;
+				}
 			}
 		}
 
@@ -975,9 +978,106 @@ h6 {
 }
 
 /* ─── Community / Profile Grids ─── */
-.community-grid-section,
+.community-grid-section {
+	@apply max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12;
+}
+
 .profile-projects {
 	@apply max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12;
+
+	.profile-toolbar {
+		@apply flex items-center justify-between mb-6;
+
+		.profile-count {
+			@apply text-sm font-medium text-muted;
+		}
+	}
+}
+
+/* ─── Profile Cards ─── */
+.profile-card {
+	@apply bg-white rounded-2xl border-2 border-stone-200 overflow-hidden
+			hover:shadow-brutal-sm transition-all duration-200;
+
+	.profile-card-preview {
+		@apply block relative aspect-[4/3] overflow-hidden;
+
+		img {
+			@apply w-full h-full object-cover transition-transform duration-300;
+		}
+
+		&:hover img {
+			@apply scale-105;
+		}
+
+		.profile-card-badges {
+			@apply absolute top-2 left-2 flex gap-1.5;
+
+			.badge-rendered {
+				@apply inline-flex items-center gap-1 px-1.5 py-0.5
+						rounded text-[10px] font-bold uppercase
+						bg-blue-100 text-blue-700;
+			}
+
+			.badge-public {
+				@apply inline-flex items-center gap-1 px-1.5 py-0.5
+						rounded text-[10px] font-bold uppercase
+						bg-green-100 text-green-700;
+			}
+		}
+	}
+
+	.profile-card-body {
+		@apply p-4;
+
+		.profile-card-info {
+			@apply mb-3;
+
+			h3 {
+				@apply text-sm font-bold text-foreground truncate;
+			}
+
+			.profile-card-date {
+				@apply text-xs text-muted;
+			}
+		}
+
+		.profile-rename-row {
+			@apply flex items-center gap-2 mb-3;
+
+			.profile-rename-input {
+				@apply flex-1 border-2 border-stone-200 rounded-lg px-2 py-1
+						text-sm bg-stone-50 outline-none
+						focus:border-primary transition-colors;
+			}
+		}
+
+		.profile-card-actions {
+			@apply flex items-center gap-1.5;
+
+			.profile-delete-confirm {
+				@apply flex items-center gap-2 text-xs font-bold text-red-600;
+			}
+		}
+	}
+}
+
+.profile-action-btn {
+	@apply w-8 h-8 flex items-center justify-center rounded-lg
+			border border-stone-200 text-muted cursor-pointer
+			hover:bg-stone-100 hover:text-foreground transition-colors;
+
+	&.active {
+		@apply bg-green-50 text-green-700 border-green-200;
+	}
+
+	&.danger {
+		@apply hover:bg-red-50 hover:text-red-600 hover:border-red-200;
+	}
+
+	&:disabled {
+		@apply opacity-40 cursor-not-allowed;
+	}
 }
 
 .community-filters {

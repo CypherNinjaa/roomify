@@ -2,24 +2,31 @@ import type { Route } from "./+types/api.admin-users";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { createClerkClient } from "@clerk/react-router/api.server";
 
-const clerk = createClerkClient({
-	secretKey: process.env.CLERK_SECRET_KEY!,
-});
+function getClerk() {
+	return createClerkClient({
+		secretKey: process.env.CLERK_SECRET_KEY!,
+	});
+}
+
+async function verifyAdmin(args: Route.LoaderArgs | Route.ActionArgs) {
+	const auth = await getAuth(args);
+	const userId = "userId" in auth ? auth.userId : null;
+	if (!userId) return null;
+	const clerk = getClerk();
+	const user = await clerk.users.getUser(userId);
+	const role = (user.publicMetadata as { role?: string })?.role;
+	if (role !== "admin") return null;
+	return { userId, clerk };
+}
 
 // GET — list all users with search/filter/pagination
 export async function loader(args: Route.LoaderArgs) {
 	try {
-		const auth = await getAuth(args);
-		const userId = "userId" in auth ? auth.userId : null;
-		if (!userId) {
-			return Response.json({ error: "Unauthorized" }, { status: 401 });
-		}
-
-		const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-		const role = (claims?.publicMetadata as { role?: string })?.role ?? null;
-		if (role !== "admin") {
+		const admin = await verifyAdmin(args);
+		if (!admin) {
 			return Response.json({ error: "Forbidden" }, { status: 403 });
 		}
+		const { clerk } = admin;
 
 		const url = new URL(args.request.url);
 		const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
@@ -73,17 +80,11 @@ export async function action(args: Route.ActionArgs) {
 	const { request } = args;
 
 	try {
-		const auth = await getAuth(args);
-		const adminUserId = "userId" in auth ? auth.userId : null;
-		if (!adminUserId) {
-			return Response.json({ error: "Unauthorized" }, { status: 401 });
-		}
-
-		const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-		const role = (claims?.publicMetadata as { role?: string })?.role ?? null;
-		if (role !== "admin") {
+		const admin = await verifyAdmin(args);
+		if (!admin) {
 			return Response.json({ error: "Forbidden" }, { status: 403 });
 		}
+		const { userId: adminUserId, clerk } = admin;
 
 		const body = await request.json();
 		const {

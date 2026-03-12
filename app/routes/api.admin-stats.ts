@@ -14,9 +14,12 @@ export async function loader(args: Route.LoaderArgs) {
 			});
 		}
 
-		// Verify admin role via Clerk session claims
-		const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-		const role = (claims?.publicMetadata as { role?: string })?.role ?? null;
+		// Verify admin role by fetching the user from Clerk
+		const clerk = createClerkClient({
+			secretKey: process.env.CLERK_SECRET_KEY!,
+		});
+		const currentUser = await clerk.users.getUser(userId);
+		const role = (currentUser.publicMetadata as { role?: string })?.role;
 		if (role !== "admin") {
 			return new Response(JSON.stringify({ error: "Forbidden" }), {
 				status: 403,
@@ -69,11 +72,10 @@ async function fetchCloudinaryStats(): Promise<{
 	storageUsedMB: number;
 }> {
 	try {
-		// Search for all source images in roomify/projects folder
+		// Search for all images in roomify/projects folder (no aggregation - free plan)
 		const sourceResult = await cloudinary.search
 			.expression("folder:roomify/projects/* AND resource_type:image")
 			.max_results(500)
-			.aggregate("folder")
 			.execute();
 
 		const totalImages = sourceResult.total_count ?? 0;
@@ -81,13 +83,24 @@ async function fetchCloudinaryStats(): Promise<{
 		// Count rendered images specifically
 		const renderResult = await cloudinary.search
 			.expression(
-				"folder:roomify/projects/* AND filename:rendered_* AND resource_type:image",
+				"folder:roomify/projects/* AND tags:roomify_rendered AND resource_type:image",
 			)
 			.max_results(1)
 			.execute();
 
 		const totalRenders = renderResult.total_count ?? 0;
-		const totalProjects = totalImages - totalRenders;
+
+		// Count unique projects by extracting project folders from resource paths
+		const projectFolders = new Set<string>();
+		for (const resource of sourceResult.resources ?? []) {
+			const folder = resource.folder ?? "";
+			// folder is like "roomify/projects/{userId}/{projectId}"
+			const parts = folder.split("/");
+			if (parts.length >= 4) {
+				projectFolders.add(`${parts[2]}/${parts[3]}`);
+			}
+		}
+		const totalProjects = projectFolders.size;
 
 		// Get storage usage from account details
 		let storageUsedMB = 0;
@@ -100,11 +113,7 @@ async function fetchCloudinaryStats(): Promise<{
 			storageUsedMB = Math.round(totalImages * 0.5);
 		}
 
-		return {
-			totalProjects: Math.max(0, totalProjects),
-			totalRenders,
-			storageUsedMB,
-		};
+		return { totalProjects, totalRenders, storageUsedMB };
 	} catch (error) {
 		console.error("Cloudinary stats error:", error);
 		return { totalProjects: 0, totalRenders: 0, storageUsedMB: 0 };

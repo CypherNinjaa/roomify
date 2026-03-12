@@ -131,6 +131,77 @@ export async function action(args: Route.ActionArgs) {
 				return Response.json({ success: true });
 			}
 
+			if (projectAction === "publish") {
+				// Add roomify_public tag to the source image
+				const folder = `roomify/projects/${userId}/${projectId}`;
+				const searchResult = await cloudinary.search
+					.expression(
+						`folder:${folder}/* AND resource_type:image AND tags=roomify_source`,
+					)
+					.max_results(1)
+					.execute();
+
+				if (searchResult.resources?.length > 0) {
+					const publicId = (
+						searchResult.resources as { public_id: string }[]
+					)[0].public_id;
+					await cloudinary.uploader.add_tag("roomify_public", [publicId]);
+				}
+
+				return Response.json({ success: true });
+			}
+
+			if (projectAction === "unpublish") {
+				// Remove roomify_public tag and delete community copy
+				const folder = `roomify/projects/${userId}/${projectId}`;
+				const searchResult = await cloudinary.search
+					.expression(
+						`folder:${folder}/* AND resource_type:image AND tags=roomify_source`,
+					)
+					.max_results(1)
+					.execute();
+
+				if (searchResult.resources?.length > 0) {
+					const publicId = (
+						searchResult.resources as { public_id: string }[]
+					)[0].public_id;
+					await cloudinary.uploader.remove_tag("roomify_public", [publicId]);
+				}
+
+				// Also remove from community folder
+				try {
+					const communityResult = await cloudinary.search
+						.expression(
+							`folder:roomify/community/${userId} AND tags=roomify_public AND resource_type:image`,
+						)
+						.with_field("context")
+						.max_results(50)
+						.execute();
+
+					const toDelete = (
+						communityResult.resources as {
+							public_id: string;
+							context?: { custom?: Record<string, string> };
+						}[]
+					)
+						.filter((r) => {
+							const ctx = r.context?.custom ?? {};
+							return (
+								ctx.project_name === projectId || ctx.project_id === projectId
+							);
+						})
+						.map((r) => r.public_id);
+
+					if (toDelete.length > 0) {
+						await cloudinary.api.delete_resources(toDelete);
+					}
+				} catch {
+					/* non-critical */
+				}
+
+				return Response.json({ success: true });
+			}
+
 			return Response.json({ error: "Unknown action" }, { status: 400 });
 		}
 

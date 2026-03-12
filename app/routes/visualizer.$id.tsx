@@ -170,6 +170,17 @@ export default function Visualizer() {
 			return;
 		}
 
+		if (
+			!projectName ||
+			projectName === "Untitled Project" ||
+			projectName.trim() === ""
+		) {
+			alert("Please name your project before publishing to the community.");
+			setIsRenaming(true);
+			setRenameValue(projectName);
+			return;
+		}
+
 		setIsPublishing(true);
 		setPublishStatus("idle");
 		try {
@@ -520,7 +531,12 @@ export default function Visualizer() {
 										alt="3D Render"
 									/>
 								}
-								style={{ height: "400px" }}
+								style={{
+									width: "100%",
+									height: "auto",
+									maxHeight: "80vh",
+									aspectRatio: "4/3",
+								}}
 							/>
 						</div>
 					</div>

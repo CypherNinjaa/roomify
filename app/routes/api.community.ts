@@ -77,6 +77,17 @@ export async function action(args: Route.ActionArgs) {
 			);
 		}
 
+		if (
+			!projectName ||
+			projectName.trim() === "" ||
+			projectName === "Untitled"
+		) {
+			return new Response(
+				JSON.stringify({ error: "Project must have a name before publishing" }),
+				{ status: 400, headers: { "Content-Type": "application/json" } },
+			);
+		}
+
 		// Upload the rendered image to community folder with public tag
 		const folder = `roomify/community/${userId}`;
 		const result = await cloudinary.uploader.upload(renderedImage, {

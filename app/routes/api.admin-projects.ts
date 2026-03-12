@@ -1,19 +1,22 @@
 import type { Route } from "./+types/api.admin-projects";
 import { getAuth } from "@clerk/react-router/ssr.server";
+import { createClerkClient } from "@clerk/react-router/api.server";
 import { cloudinary } from "~/lib/cloudinary";
+
+async function verifyAdmin(args: Route.LoaderArgs | Route.ActionArgs) {
+	const auth = await getAuth(args);
+	const userId = "userId" in auth ? auth.userId : null;
+	if (!userId) return false;
+	const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
+	const user = await clerk.users.getUser(userId);
+	const role = (user.publicMetadata as { role?: string })?.role;
+	return role === "admin";
+}
 
 // GET — list all projects across all users
 export async function loader(args: Route.LoaderArgs) {
 	try {
-		const auth = await getAuth(args);
-		const userId = "userId" in auth ? auth.userId : null;
-		if (!userId) {
-			return Response.json({ error: "Unauthorized" }, { status: 401 });
-		}
-
-		const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-		const role = (claims?.publicMetadata as { role?: string })?.role ?? null;
-		if (role !== "admin") {
+		if (!(await verifyAdmin(args))) {
 			return Response.json({ error: "Forbidden" }, { status: 403 });
 		}
 
@@ -139,15 +142,7 @@ export async function action(args: Route.ActionArgs) {
 	const { request } = args;
 
 	try {
-		const auth = await getAuth(args);
-		const userId = "userId" in auth ? auth.userId : null;
-		if (!userId) {
-			return Response.json({ error: "Unauthorized" }, { status: 401 });
-		}
-
-		const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-		const role = (claims?.publicMetadata as { role?: string })?.role ?? null;
-		if (role !== "admin") {
+		if (!(await verifyAdmin(args))) {
 			return Response.json({ error: "Forbidden" }, { status: 403 });
 		}
 
